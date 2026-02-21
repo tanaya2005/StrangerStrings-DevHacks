@@ -10,9 +10,10 @@
 //   • Waiting-room text chat
 //   • Countdown display before game starts
 // ============================================================
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import socket from "../socket/socket";
+import { getFriendSocket } from "../socket/friendSocket";
 import useStore from "../store/store";
 import Voice from "../voice/Voice";
 import "./Lobby.css";
@@ -44,9 +45,15 @@ export default function Lobby() {
     const [countdown, setCountdown] = useState(null);
     const [chatInput, setChatInput] = useState("");
     const [isReady, setIsReady] = useState(false);
+    // followMap: playerName → "idle" | "sending" | "sent"
+    const [followMap, setFollowMap] = useState({});
+    // incoming friend-request toasts: [{ fromUserId, fromUsername, id }]
+    const [frToasts, setFrToasts] = useState([]);
+    // accepted toasts: [{ friendUsername, id }]
+    const [acceptedToasts, setAcceptedToasts] = useState([]);
 
     const chatEndRef = useRef(null);
-    const mySocketId = socket.id;
+    const fsRef = useRef(null);   // friend socket ref
 
     // ---- Load username from localStorage on mount ----
     useEffect(() => {
@@ -67,6 +74,50 @@ export default function Lobby() {
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [chatMessages]);
+
+    // ---- Friend socket: real-time request notifications ----
+    useEffect(() => {
+        const fs = getFriendSocket();
+        if (!fs) return;
+        fsRef.current = fs;
+
+        // Someone sent ME a friend request
+        fs.on("friend:requestReceived", ({ fromUserId, fromUsername }) => {
+            const toastId = `fr-${Date.now()}`;
+            setFrToasts(prev => [...prev, { fromUserId, fromUsername, id: toastId }]);
+            // Auto-dismiss after 15s
+            setTimeout(() => setFrToasts(prev => prev.filter(t => t.id !== toastId)), 15000);
+        });
+
+        // MY request was accepted (or I accepted someone) — confirmation
+        fs.on("friend:accepted", ({ friendUsername }) => {
+            const toastId = `acc-${Date.now()}`;
+            setAcceptedToasts(prev => [...prev, { friendUsername, id: toastId }]);
+            setTimeout(() => setAcceptedToasts(prev => prev.filter(t => t.id !== toastId)), 5000);
+        });
+
+        // Server ack for MY outgoing request
+        fs.on("friend:requestSent", ({ toUsername, status }) => {
+            setFollowMap(prev => ({ ...prev, [toUsername]: "sent" }));
+        });
+
+        fs.on("friend:requestError", ({ error }) => {
+            console.warn("[FriendSocket] request error:", error);
+            // Reset button so user can retry
+            setFollowMap(prev => {
+                const next = { ...prev };
+                Object.keys(next).forEach(k => { if (next[k] === "sending") next[k] = "idle"; });
+                return next;
+            });
+        });
+
+        return () => {
+            fs.off("friend:requestReceived");
+            fs.off("friend:accepted");
+            fs.off("friend:requestSent");
+            fs.off("friend:requestError");
+        };
+    }, []);
 
     // ---- Socket setup ----
     useEffect(() => {
@@ -208,12 +259,121 @@ export default function Lobby() {
         navigate("/");
     }
 
+    // ---- Send friend request — pure REST, no socket dependency ----
+    const handleFollow = useCallback(async (targetName) => {
+        setFollowMap(prev => ({ ...prev, [targetName]: "sending" }));
+        try {
+            const token = localStorage.getItem("mr_token");
+            const res = await fetch(
+                `${import.meta.env.VITE_SERVER_URL || "http://localhost:5000"}/api/friends/request`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ toUsername: targetName }),
+                }
+            );
+            const data = await res.json();
+
+            if (res.ok) {
+                // "sent" covers both normal request AND auto-accepted cross-request
+                setFollowMap(prev => ({ ...prev, [targetName]: "sent" }));
+            } else if (data.error === "Already friends" || data.error === "Request already sent") {
+                // Treat as success — button should still show ✓
+                setFollowMap(prev => ({ ...prev, [targetName]: "sent" }));
+            } else {
+                console.warn("[handleFollow] server error:", data.error);
+                setFollowMap(prev => ({ ...prev, [targetName]: "idle" }));
+                // Show brief inline error instead of blocking alert
+                setError(`Add friend failed: ${data.error}`);
+                setTimeout(() => setError(""), 4000);
+            }
+        } catch (err) {
+            console.error("[handleFollow] fetch error:", err);
+            setFollowMap(prev => ({ ...prev, [targetName]: "idle" }));
+        }
+    }, []);
+
+    // ---- Accept incoming friend request — pure REST ----
+    const handleAcceptRequest = useCallback(async (fromUserId, toastId) => {
+        setFrToasts(prev => prev.filter(t => t.id !== toastId));
+        try {
+            const token = localStorage.getItem("mr_token");
+            await fetch(
+                `${import.meta.env.VITE_SERVER_URL || "http://localhost:5000"}/api/friends/respond`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ fromUserId, action: "accept" }),
+                }
+            );
+        } catch (err) {
+            console.error("[handleAcceptRequest] error:", err);
+        }
+    }, []);
+
+    // ---- Decline incoming friend request — pure REST ----
+    const handleDeclineRequest = useCallback(async (fromUserId, toastId) => {
+        setFrToasts(prev => prev.filter(t => t.id !== toastId));
+        try {
+            const token = localStorage.getItem("mr_token");
+            await fetch(
+                `${import.meta.env.VITE_SERVER_URL || "http://localhost:5000"}/api/friends/respond`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ fromUserId, action: "decline" }),
+                }
+            );
+        } catch (err) {
+            console.error("[handleDeclineRequest] error:", err);
+        }
+    }, []);
+
     // ---- Render ----
     const playerList = Object.values(players);
 
     return (
         <div className="lobby-page">
             <div className="lobby-bg-anim" />
+
+            {/* ── Friend-request toasts (incoming) ── */}
+            <div className="fr-toast-stack">
+                {frToasts.map(t => (
+                    <div key={t.id} className="fr-toast">
+                        <div className="fr-toast-icon">👤</div>
+                        <div className="fr-toast-body">
+                            <p><strong>{t.fromUsername}</strong> sent you a friend request!</p>
+                        </div>
+                        <div className="fr-toast-actions">
+                            <button
+                                className="fr-btn-accept"
+                                onClick={() => handleAcceptRequest(t.fromUserId, t.id)}
+                            >✓ Accept</button>
+                            <button
+                                className="fr-btn-decline"
+                                onClick={() => handleDeclineRequest(t.fromUserId, t.id)}
+                            >✗</button>
+                        </div>
+                    </div>
+                ))}
+                {acceptedToasts.map(t => (
+                    <div key={t.id} className="fr-toast fr-toast--accepted">
+                        <div className="fr-toast-icon">🤝</div>
+                        <div className="fr-toast-body">
+                            <p>You and <strong>{t.friendUsername}</strong> are now friends!</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
 
             <div className="lobby-container">
                 {/* ---- Header ---- */}
@@ -321,20 +481,36 @@ export default function Lobby() {
                             <div className="players-sidebar">
                                 <h2 className="sidebar-title">Players ({playerList.length}/5)</h2>
                                 <ul className="player-list">
-                                    {playerList.map((p) => (
-                                        <li key={p.id} className={`player-item ${p.id === socket.id ? "self" : ""}`}>
-                                            <span className="player-avatar">
-                                                {p.name.charAt(0).toUpperCase()}
-                                            </span>
-                                            <span className="player-name">
-                                                {p.name}
-                                                {p.id === socket.id && " (you)"}
-                                            </span>
-                                            <span className={`ready-badge ${p.ready ? "ready" : "not-ready"}`}>
-                                                {p.ready ? "✓ Ready" : "Waiting"}
-                                            </span>
-                                        </li>
-                                    ))}
+                                    {playerList.map((p) => {
+                                        const isSelf = p.id === socket.id;
+                                        const fState = followMap[p.name] || "idle";
+                                        return (
+                                            <li key={p.id} className={`player-item ${isSelf ? "self" : ""}`}>
+                                                <span className="player-avatar">
+                                                    {p.name.charAt(0).toUpperCase()}
+                                                </span>
+                                                <span className="player-name">
+                                                    {p.name}
+                                                    {isSelf && " (you)"}
+                                                </span>
+                                                <span className={`ready-badge ${p.ready ? "ready" : "not-ready"}`}>
+                                                    {p.ready ? "✓ Ready" : "Waiting"}
+                                                </span>
+                                                {/* ➕ Follow button — only for other players */}
+                                                {!isSelf && (
+                                                    <button
+                                                        className="btn-follow-lobby"
+                                                        onClick={() => handleFollow(p.name)}
+                                                        disabled={fState !== "idle"}
+                                                        title={fState === "sent" ? "Request sent!" : `Add ${p.name} as friend`}
+                                                    >
+                                                        {fState === "sending" ? "…" :
+                                                            fState === "sent" ? "✓" : "👤"}
+                                                    </button>
+                                                )}
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
 
                                 <button

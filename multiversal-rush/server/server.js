@@ -13,6 +13,8 @@ import authRoutes from "./routes/authRoutes.js";
 import voiceRoutes from "./routes/voiceRoutes.js";     // archit2 — LiveKit token
 import { registerGameSocket } from "./socket/gameSocket.js";
 import { attachChat } from "./socket/chat.js";
+import { attachFriendSocket } from "./socket/friendSocket.js";
+import friendRoutes from "./routes/friendRoutes.js";
 
 // Load environment variables
 dotenv.config({ override: true });
@@ -35,9 +37,10 @@ app.use(cors({
 }));
 
 // ---- REST Routes ----
-app.use("/api/auth", authRoutes);          // signup / login / me
-app.use("/api/leaderboard", leaderboardRoutes);   // global leaderboard
-app.use("/api/voice", voiceRoutes);         // LiveKit token (archit2)
+app.use("/api/auth", authRoutes);
+app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/voice", voiceRoutes);
+app.use("/api/friends", friendRoutes);
 
 // Health check
 app.get("/", (req, res) => res.send("Multiversal Rush Server ✅"));
@@ -56,9 +59,9 @@ const io = new Server(httpServer, {
     pingInterval: 25000,
 });
 
-// Register socket handlers
 registerGameSocket(io);
 attachChat(io);
+attachFriendSocket(io);   // real-time friends: presence, DMs, room invites
 
 console.log("✅ LiveKit voice enabled (cloud SFU — no local server needed)");
 

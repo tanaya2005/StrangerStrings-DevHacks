@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";
 import Leaderboard from "./pages/Leaderboard";
+import Friends from "./pages/Friends";
 import WorldTest from "./pages/WorldTest";
 
 /** Read token from localStorage — called on every render */
@@ -75,11 +76,11 @@ export default function App() {
                 />
                 <Route
                     path="/leaderboard"
-                    element={
-                        <PrivateRoute>
-                            <Leaderboard />
-                        </PrivateRoute>
-                    }
+                    element={<PrivateRoute><Leaderboard /></PrivateRoute>}
+                />
+                <Route
+                    path="/friends"
+                    element={<PrivateRoute><Friends /></PrivateRoute>}
                 />
                 <Route path="/test/:worldId" element={<WorldTest />} />
 

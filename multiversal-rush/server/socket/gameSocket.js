@@ -4,6 +4,7 @@
 // ============================================================
 
 import User from "../models/User.js";
+import Message from "../models/Message.js";
 
 /**
  * In-memory room store.
@@ -140,7 +141,7 @@ function playerCount(room) {
  */
 async function distributeTrophies(io, roomId, room) {
     const results = [];
-    
+
     // Process each player in finish order
     for (let i = 0; i < room.finishedOrder.length; i++) {
         const socketId = room.finishedOrder[i];
@@ -203,7 +204,7 @@ async function distributeTrophies(io, roomId, room) {
                     { $inc: { gamesPlayed: 1 } },
                     { new: true }
                 );
-                
+
                 results.push({
                     username: player.name,
                     place: 0, // Eliminated
@@ -227,7 +228,7 @@ async function distributeTrophies(io, roomId, room) {
             .sort({ trophies: -1 })
             .limit(20)
             .select("username trophies wins gamesPlayed");
-        
+
         io.to(roomId).emit("leaderboardUpdate", { leaderboard });
     } catch (err) {
         console.error(`[Leaderboard Update] Error:`, err);
@@ -264,10 +265,10 @@ async function checkElimination(io, roomId, room) {
         });
 
         console.log(`[Room ${roomId}] Game finished. Winner: ${winner.name}`);
-        
+
         // Distribute trophies and show match results
         await distributeTrophies(io, roomId, room);
-        
+
         // After 10 seconds, reset room
         setTimeout(() => {
             io.to(roomId).emit("returnToLobby");
@@ -277,17 +278,28 @@ async function checkElimination(io, roomId, room) {
     // If no active players (all eliminated), end game
     if (activePlayers.length === 0) {
         room.gameState = "finished";
-        
+
         console.log(`[Room ${roomId}] Game finished. All players eliminated.`);
-        
+
         // Distribute trophies even if all eliminated
         await distributeTrophies(io, roomId, room);
-        
+
         // After 10 seconds, reset room
         setTimeout(() => {
             io.to(roomId).emit("returnToLobby");
         }, MATCH_RESULTS_DURATION);
     }
+}
+
+// ============================================================
+//  Module-level DM tracking (survives individual connections)
+//  Maps userId (MongoDB string) → current socketId
+// ============================================================
+const dmUserMap = new Map(); // userId → socketId
+
+/** Compute the deterministic private-chat room name for two users */
+function dmRoom(idA, idB) {
+    return [idA, idB].sort().join("___dm___");
 }
 
 // ============================================================
@@ -297,6 +309,67 @@ export function registerGameSocket(io) {
 
     io.on("connection", (socket) => {
         console.log(`[Socket] Connected: ${socket.id}`);
+
+        // --------------------------------------------------------
+        //  dm:register
+        //  Called as soon as the Friends page mounts.
+        //  Payload: { userId }  (the user's MongoDB _id string)
+        //  Allows the server to route inbound DMs to this socket.
+        // --------------------------------------------------------
+        socket.on("dm:register", ({ userId }) => {
+            if (!userId) return;
+            socket.data.dmUserId = userId;
+            dmUserMap.set(userId, socket.id);
+            console.log(`[DM] Registered ${userId} → ${socket.id}`);
+        });
+
+        // --------------------------------------------------------
+        //  dm:join
+        //  Called when the user opens a chat with a friend.
+        //  Payload: { myId, friendId }  (both MongoDB _id strings)
+        //  Both clients compute the SAME sorted room name.
+        // --------------------------------------------------------
+        socket.on("dm:join", ({ myId, friendId }) => {
+            if (!myId || !friendId) return;
+            const room = dmRoom(myId, friendId);
+            socket.join(room);
+            // Store so we can clean up on disconnect
+            socket.data.dmUserId = myId;
+            dmUserMap.set(myId, socket.id);
+            console.log(`[DM] ${myId} joined room ${room}`);
+        });
+
+        // --------------------------------------------------------
+        //  dm:send
+        //  Payload: { myId, friendId, text }
+        //  Saves message to DB → emits dm:receive to the private room.
+        // --------------------------------------------------------
+        socket.on("dm:send", async ({ myId, friendId, text }) => {
+            if (!myId || !friendId || !text?.trim()) return;
+
+            const room = dmRoom(myId, friendId);
+            const trimmed = text.trim().slice(0, 500);
+
+            try {
+                const msg = await Message.create({
+                    participants: [myId, friendId].sort(),
+                    sender: myId,
+                    text: trimmed,
+                });
+
+                io.to(room).emit("dm:receive", {
+                    _id: msg._id,
+                    sender: myId,
+                    text: msg.text,
+                    createdAt: msg.createdAt,
+                });
+
+                console.log(`[DM] ${myId} → ${friendId}: "${trimmed.slice(0, 40)}"`);
+            } catch (err) {
+                console.error("[DM] dm:send error:", err);
+                socket.emit("dm:error", { error: "Message could not be saved" });
+            }
+        });
 
         // --------------------------------------------------------
         //  joinRoom
@@ -524,10 +597,10 @@ export function registerGameSocket(io) {
             if (allFinished) {
                 room.gameState = "finished";
                 console.log(`[Room ${roomId}] All players finished!`);
-                
+
                 // Distribute trophies and show match results
                 await distributeTrophies(io, roomId, room);
-                
+
                 // After 10 seconds, signal return to lobby
                 setTimeout(() => {
                     io.to(roomId).emit("returnToLobby");
@@ -587,10 +660,10 @@ export function registerGameSocket(io) {
                 });
 
                 console.log(`[Room ${roomId}] ${winner.name} wins (last player standing)!`);
-                
+
                 // Distribute trophies and show match results
                 await distributeTrophies(io, roomId, room);
-                
+
                 // After 10 seconds, signal return to lobby
                 setTimeout(() => {
                     io.to(roomId).emit("returnToLobby");
@@ -599,10 +672,10 @@ export function registerGameSocket(io) {
                 // All eliminated
                 room.gameState = "finished";
                 console.log(`[Room ${roomId}] All players eliminated!`);
-                
+
                 // Distribute trophies (all get 0)
                 await distributeTrophies(io, roomId, room);
-                
+
                 // After 10 seconds, signal return to lobby
                 setTimeout(() => {
                     io.to(roomId).emit("returnToLobby");
@@ -696,6 +769,18 @@ export function registerGameSocket(io) {
                 if (room.avalancheInterval) clearInterval(room.avalancheInterval);
                 delete rooms[roomId];
                 console.log(`[Room ${roomId}] Deleted (empty)`);
+            }
+        });
+
+        // ---- DM cleanup on disconnect ----
+        socket.on("disconnect", () => {
+            if (socket.data.dmUserId) {
+                // Only delete from map if this socket is still the current one
+                // (user may have re-connected on another tab)
+                if (dmUserMap.get(socket.data.dmUserId) === socket.id) {
+                    dmUserMap.delete(socket.data.dmUserId);
+                    console.log(`[DM] Unregistered ${socket.data.dmUserId}`);
+                }
             }
         });
 

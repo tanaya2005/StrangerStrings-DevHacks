@@ -70,7 +70,7 @@ export default function Home() {
             <div className="home-bg-anim" />
 
             {/* Sidebar Toggle Button (Mobile) */}
-            <button 
+            <button
                 className="sidebar-toggle"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
             >
@@ -92,8 +92,8 @@ export default function Home() {
                     ) : (
                         <div className="leaderboard-list">
                             {leaderboard.map((player, idx) => (
-                                <div 
-                                    key={player._id} 
+                                <div
+                                    key={player._id}
                                     className={`lb-item ${player.username === user?.username ? "me" : ""}`}
                                 >
                                     <span className="lb-rank">#{idx + 1}</span>
@@ -156,7 +156,7 @@ export default function Home() {
                         <div className="stat-card">
                             <div className="stat-icon">📊</div>
                             <div className="stat-value">
-                                {userStats?.gamesPlayed > 0 
+                                {userStats?.gamesPlayed > 0
                                     ? `${((userStats.wins / userStats.gamesPlayed) * 100).toFixed(1)}%`
                                     : "0%"}
                             </div>
@@ -172,9 +172,14 @@ export default function Home() {
                         <span className="btn-text">Play Now</span>
                     </button>
 
+                    <button className="btn-secondary" onClick={() => navigate("/friends")}>
+                        <span className="btn-icon">👥</span>
+                        <span className="btn-text">Friends &amp; DMs</span>
+                    </button>
+
                     <button className="btn-secondary" onClick={() => navigate("/leaderboard")}>
                         <span className="btn-icon">🏆</span>
-                        <span className="btn-text">View Full Leaderboard</span>
+                        <span className="btn-text">Leaderboard</span>
                     </button>
                 </section>
 
@@ -189,8 +194,8 @@ export default function Home() {
                                     <span>{userStats.trophies} / 1000</span>
                                 </div>
                                 <div className="progress-bar">
-                                    <div 
-                                        className="progress-fill" 
+                                    <div
+                                        className="progress-fill"
                                         style={{ width: `${Math.min((userStats.trophies / 1000) * 100, 100)}%` }}
                                     />
                                 </div>
@@ -202,8 +207,8 @@ export default function Home() {
                                     <span>{userStats.gamesPlayed} / 100</span>
                                 </div>
                                 <div className="progress-bar">
-                                    <div 
-                                        className="progress-fill" 
+                                    <div
+                                        className="progress-fill"
                                         style={{ width: `${Math.min((userStats.gamesPlayed / 100) * 100, 100)}%` }}
                                     />
                                 </div>
