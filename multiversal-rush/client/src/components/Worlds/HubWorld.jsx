@@ -11,11 +11,13 @@ export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
     const cyberPortalRef = useRef(null);
     const honeyPortalRef = useRef(null);
     const cryoPortalRef = useRef(null);
+    const lavaPortalRef = useRef(null);
 
     useFrame((_, delta) => {
         if (cyberPortalRef.current) cyberPortalRef.current.rotation.y += delta;
         if (honeyPortalRef.current) honeyPortalRef.current.rotation.y += delta;
         if (cryoPortalRef.current) cryoPortalRef.current.rotation.y += delta;
+        if (lavaPortalRef.current) lavaPortalRef.current.rotation.y += delta;
     });
 
     const portals = [
@@ -33,6 +35,11 @@ export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
             id: 'cryovoid',
             min: { x: -4, y: 0, z: 6 },
             max: { x: 4, y: 7, z: 14 }
+        },
+        {
+            id: 'lavahell',
+            min: { x: 6, y: 0, z: 6 },
+            max: { x: 14, y: 7, z: 14 }
         }
     ];
 
@@ -78,6 +85,16 @@ export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
                 <mesh ref={cryoPortalRef}>
                     <torusGeometry args={[1.5, 0.2, 16, 60]} />
                     <meshStandardMaterial color="#aaddff" emissive="#ffffff" emissiveIntensity={1.5} />
+                </mesh>
+            </group>
+
+            {/* Lava Hell bridge + Portal (fiery red) */}
+            <Platform position={[5, -0.5, 5]} scale={[5, 1, 5]} type="static" color="#333333" />
+            <Platform position={[10, -0.5, 10]} scale={[8, 1, 8]} type="static" color="#111111" />
+            <group position={[10, 2, 10]}>
+                <mesh ref={lavaPortalRef}>
+                    <torusGeometry args={[1.5, 0.2, 16, 60]} />
+                    <meshStandardMaterial color="#ff3300" emissive="#ff2200" emissiveIntensity={1.5} />
                 </mesh>
             </group>
 

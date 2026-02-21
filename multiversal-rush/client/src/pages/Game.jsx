@@ -16,6 +16,7 @@ import World2 from "../components/Worlds/World2";
 import Honeycomb from "../components/Worlds/Honeycomb";
 import HubWorld from "../components/Worlds/HubWorld";
 import WorldCryoVoid from "../components/Worlds/WorldCryoVoid";
+import WorldLavaHell from "../components/Worlds/WorldLavaHell";
 
 export default function Game() {
     const navigate = useNavigate();
@@ -136,6 +137,7 @@ export default function Game() {
         // Both Honeycomb and CryoVoid use world=3 — that's fine,
         // they never render simultaneously so no conflict
         else if (portalId === 'cryovoid') setCurrentWorld(3);
+        else if (portalId === 'lavahell') setCurrentWorld(5);
         else if (portalId === 'hub') setCurrentWorld(0);
     }, [setCurrentWorld]);
 
@@ -193,6 +195,15 @@ export default function Game() {
                 {/* World 4 — Cryo Void */}
                 {currentLevel === "cryovoid" && (
                     <WorldCryoVoid
+                        emitMove={emitMove}
+                        emitFinished={emitFinished}
+                        emitFell={emitFell}
+                    />
+                )}
+
+                {/* World 5 — Lava Hell 🔥 */}
+                {currentLevel === "lavahell" && (
+                    <WorldLavaHell
                         emitMove={emitMove}
                         emitFinished={emitFinished}
                         emitFell={emitFell}
