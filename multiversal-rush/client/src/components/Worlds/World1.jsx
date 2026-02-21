@@ -75,7 +75,7 @@ export default function World1({ emitMove, emitWorldTransition, emitFell }) {
                 emitFell={emitFell}
                 emitWorldTransition={emitWorldTransition}
                 world={1}
-                startPosition={[0, 1, 0]}
+                startPosition={[0, 5, 0]}
             />
         </>
     );

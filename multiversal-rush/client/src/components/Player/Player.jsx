@@ -14,7 +14,7 @@ const CROUCH_SPEED = 5;
 const JUMP_POWER = 15;
 const GRAVITY = -30;
 const BASE_Y = 1;   // ground level y
-const FALL_LIMIT = -10; // fall off world below this y
+const FALL_LIMIT = -25; // fall off world below this y (increased for Lava check)
 
 // ---- Keyboard hook (Tanaya's — no re-renders) ----
 function useKeyboard() {
@@ -59,6 +59,10 @@ export default function Player({
     emitWorldTransition,
     world = 1,
     startPosition = [0, BASE_Y, 0],
+    tiles = [],
+    onTileTouch = null,
+    portals = [],
+    onPortalTouch = null,
 }) {
     const playerRef = useRef();
     const keys = useKeyboard();
@@ -139,6 +143,33 @@ export default function Player({
             }
         }
 
+        // ---- 4.1 Honeycomb Tile Collision ----
+        if (!hitPlatform && tiles && tiles.length > 0) {
+            const hexWidth = 1.732; // sqrt(3)
+            const hexDepth = 2; // Flat top to bottom is ~2
+            const hexHeight = 0.5;
+
+            for (let i = 0; i < tiles.length; i++) {
+                const t = tiles[i];
+                if (t.status === 'idle' || t.status === 'touched') {
+                    const pMin = { x: t.x - hexWidth / 2, y: t.y - hexHeight / 2, z: t.z - hexDepth / 2 };
+                    const pMax = { x: t.x + hexWidth / 2, y: t.y + hexHeight / 2, z: t.z + hexDepth / 2 };
+
+                    if (checkAABB(playerMin, playerMax, pMin, pMax)) {
+                        const resolveY = resolveCollisionY(playerMin, playerMax, pMin, pMax, velocityY.current);
+                        if (resolveY !== null) {
+                            hitPlatform = true;
+                            snapY = resolveY + playerSize.y / 2;
+                            if (t.status === 'idle' && onTileTouch) {
+                                onTileTouch(t.id);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         if (hitPlatform && snapY !== null) {
             pos.y = snapY;
             velocityY.current = 0;
@@ -148,8 +179,27 @@ export default function Player({
             isGrounded.current = false;
         }
 
-        // ---- Fall detection (Varun) ----
-        if (pos.y < FALL_LIMIT) {
+        // ---- 4.2 Portal Collision ----
+        if (portals && portals.length > 0) {
+            for (let i = 0; i < portals.length; i++) {
+                const pMin = portals[i].min;
+                const pMax = portals[i].max;
+                if (checkAABB(playerMin, playerMax, pMin, pMax)) {
+                    if (onPortalTouch) {
+                        onPortalTouch(portals[i].id);
+                    }
+                }
+            }
+        }
+
+        // ---- Fall detection & Lava (Varun & Honeycomb) ----
+        if (pos.y < -19.5 && tiles && tiles.length > 0) {
+            // Lava specific condition
+            pos.set(...startPosition);
+            velocityY.current = 0;
+            isGrounded.current = true;
+        } else if (pos.y < FALL_LIMIT) {
+            // Standard fall reset
             pos.set(...startPosition);
             velocityY.current = 0;
             isGrounded.current = true;

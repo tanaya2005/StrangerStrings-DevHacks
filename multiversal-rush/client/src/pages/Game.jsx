@@ -8,7 +8,7 @@
 //
 //  Member 1 slots their <World1 />, <World2 />, <Player /> here.
 // ============================================================
-import React, { useEffect, useRef, useCallback, Suspense, lazy } from "react";
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useNavigate } from "react-router-dom";
 import socket from "../socket/socket";
@@ -17,9 +17,12 @@ import RemotePlayers from "../components/Multiplayer/RemotePlayers";
 import HUD from "../components/UI/HUD";
 import World1 from "../components/Worlds/World1";
 import World2 from "../components/Worlds/World2";
+import Honeycomb from "../components/Worlds/Honeycomb";
+import HubWorld from "../components/Worlds/HubWorld";
 
 export default function Game() {
     const navigate = useNavigate();
+    const [currentLevel, setCurrentLevel] = useState('hub');
 
     const currentWorld = useStore((s) => s.currentWorld);
     const setCurrentWorld = useStore((s) => s.setCurrentWorld);
@@ -147,8 +150,17 @@ export default function Game() {
                 {/* Remote players (Member 2) */}
                 <RemotePlayers />
 
-                {/* World 1 (Member 1 implements) */}
-                {currentWorld === 1 && (
+                {/* Hub World */}
+                {currentLevel === 'hub' && (
+                    <HubWorld
+                        onEnterPortal={setCurrentLevel}
+                        emitMove={emitMove}
+                        emitFell={emitFell}
+                    />
+                )}
+
+                {/* World 1 (Cyberverse) */}
+                {currentLevel === 'cyberverse' && (
                     <World1
                         emitMove={emitMove}
                         emitWorldTransition={emitWorldTransition}
@@ -156,12 +168,11 @@ export default function Game() {
                     />
                 )}
 
-                {/* World 2 (Member 1 implements) */}
-                {currentWorld === 2 && (
-                    <World2
+                {/* World 3 - Honeycomb */}
+                {currentLevel === 'honeycomb' && (
+                    <Honeycomb
                         emitMove={emitMove}
-                        emitWorldTransition={() => { }}
-                        emitFinished={emitFinished}
+                        emitWorldTransition={emitWorldTransition}
                         emitFell={emitFell}
                     />
                 )}
