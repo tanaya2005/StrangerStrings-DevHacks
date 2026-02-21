@@ -3,8 +3,8 @@
 //  FIX: isLoggedIn() was called at mount time only (not reactive).
 //  Now uses useState so the guard updates immediately after login.
 // ============================================================
-import React, { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";

@@ -1,14 +1,9 @@
 // ============================================================
-//  pages/Game.jsx — 3D Game page shell
-//  Member 2 (Multiplayer) provides:
-//   • Socket listener hooks for other players' positions
-//   • Remote player meshes rendered in the scene
-//   • Position emitter (called by Member 1's movement code)
-//   • World gating (hide players from other worlds)
-//
-//  Member 1 slots their <World1 />, <World2 />, <Player /> here.
+//  pages/Game.jsx — 3D game shell
+//  Varun: socket, emits, remote players, HUD
+//  Atharva: HubWorld + Honeycomb worlds added, currentLevel state
 // ============================================================
-import React, { useEffect, useRef, useCallback, Suspense, lazy } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useNavigate } from "react-router-dom";
 import socket from "../socket/socket";
@@ -17,80 +12,52 @@ import RemotePlayers from "../components/Multiplayer/RemotePlayers";
 import HUD from "../components/UI/HUD";
 import World1 from "../components/Worlds/World1";
 import World2 from "../components/Worlds/World2";
+import Honeycomb from "../components/Worlds/Honeycomb";
+import HubWorld from "../components/Worlds/HubWorld";
 
 export default function Game() {
     const navigate = useNavigate();
+    const [currentLevel, setCurrentLevel] = useState("hub");
 
-    const currentWorld = useStore((s) => s.currentWorld);
     const setCurrentWorld = useStore((s) => s.setCurrentWorld);
-    const gameState = useStore((s) => s.gameState);
     const setGameState = useStore((s) => s.setGameState);
     const updatePlayer = useStore((s) => s.updatePlayer);
-    const removePlayer = useStore((s) => s.removePlayer);
     const setFinishedOrder = useStore((s) => s.setFinishedOrder);
     const setMyFinishResult = useStore((s) => s.setMyFinishResult);
     const setStartTime = useStore((s) => s.setStartTime);
     const setPlayers = useStore((s) => s.setPlayers);
 
-    // Track when we last emitted a move (client-side throttle)
     const lastEmitTime = useRef(0);
-    
-    // State for notifications
-    const [notification, setNotification] = useState(null);
-
-    // Show notification helper
-    const showNotification = (message, duration = 3000) => {
-        setNotification(message);
-        setTimeout(() => setNotification(null), duration);
-    };
 
     // ---- Socket listeners ----
     useEffect(() => {
-        // Another player moved
-        socket.on("playerMoved", ({ playerId, position, rotation, world }) => {
-            updatePlayer(playerId, { position, rotation, world });
-        });
+        socket.on("playerMoved", ({ playerId, position, rotation, world }) =>
+            updatePlayer(playerId, { position, rotation, world }));
 
-        // Another player changed world
-        socket.on("playerWorldChanged", ({ playerId, newWorld }) => {
-            updatePlayer(playerId, { world: newWorld });
-        });
+        socket.on("playerWorldChanged", ({ playerId, newWorld }) =>
+            updatePlayer(playerId, { world: newWorld }));
 
-        // Another player finished
         socket.on("playerFinishedRace", ({ playerId, finishTime, finishedOrder }) => {
             updatePlayer(playerId, { finished: true, finishTime });
             setFinishedOrder(finishedOrder);
         });
 
-        // Our own finish result
-        socket.on("yourFinishResult", ({ position, finishTime }) => {
-            setMyFinishResult({ position, finishTime });
-        });
+        socket.on("yourFinishResult", ({ position, finishTime }) =>
+            setMyFinishResult({ position, finishTime }));
 
-        // A player was eliminated
-        socket.on("playerEliminated", ({ eliminatedId }) => {
-            updatePlayer(eliminatedId, { eliminated: true });
-        });
+        socket.on("playerEliminated", ({ eliminatedId }) =>
+            updatePlayer(eliminatedId, { eliminated: true }));
 
-        // Game finished → navigate to leaderboard after brief delay
         socket.on("gameFinished", ({ finishedOrder }) => {
             setGameState("finished");
             setFinishedOrder(finishedOrder);
             setTimeout(() => navigate("/leaderboard"), 3000);
         });
 
-        // Someone disconnected mid-game
-        socket.on("playerLeft", ({ playerId, playerName, players }) => {
-            if (playerName) {
-                showNotification(`${playerName} left the game`);
-            }
-            if (players) setPlayers(players);
-        });
+        socket.on("playerLeft", ({ players }) => { if (players) setPlayers(players); });
 
-        // Another player respawned (fell)
-        socket.on("playerRespawned", ({ playerId }) => {
-            updatePlayer(playerId, { position: { x: 0, y: 1, z: 0 } });
-        });
+        socket.on("playerRespawned", ({ playerId }) =>
+            updatePlayer(playerId, { position: { x: 0, y: 1, z: 0 } }));
 
         return () => {
             socket.off("playerMoved");
@@ -104,86 +71,44 @@ export default function Game() {
         };
     }, []);
 
-    // ---- PUBLIC API for Member 1 ----
-    /**
-     * emitMove({ position, rotation, world })
-     * Call this from Player.jsx every frame AFTER updating position.
-     * Throttled to 50ms (≈ 20 updates/sec) to save bandwidth.
-     */
     const emitMove = useCallback(({ position, rotation, world }) => {
         const now = Date.now();
-        if (now - lastEmitTime.current < 50) return; // throttle
+        if (now - lastEmitTime.current < 50) return;
         lastEmitTime.current = now;
         socket.emit("move", { position, rotation, world });
     }, []);
 
-    /**
-     * emitWorldTransition(newWorld)
-     * Call this when the player crosses the portal.
-     */
     const emitWorldTransition = useCallback((newWorld) => {
         setCurrentWorld(newWorld);
         socket.emit("worldTransition", { newWorld });
     }, []);
 
-    /**
-     * emitFinished()
-     * Call this when the player crosses the final finish portal.
-     */
-    const emitFinished = useCallback(() => {
-        socket.emit("playerFinished");
-    }, []);
+    const emitFinished = useCallback(() => socket.emit("playerFinished"), []);
+    const emitFell = useCallback(() => socket.emit("playerFell"), []);
 
-    /**
-     * emitFell()
-     * Call this when the player falls off and needs to respawn.
-     */
-    const emitFell = useCallback(() => {
-        socket.emit("playerFell");
+    // Handle portal entry from HubWorld
+    const handleEnterPortal = useCallback((portalId) => {
+        setCurrentLevel(portalId); // 'cyberverse' | 'honeycomb'
     }, []);
 
     return (
         <div style={{ width: "100vw", height: "100vh", position: "relative", background: "#000" }}>
-            {/* Notification overlay */}
-            {notification && (
-                <div style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    background: "rgba(255,77,109,0.9)",
-                    border: "2px solid rgba(255,77,109,1)",
-                    borderRadius: "12px",
-                    padding: "20px 40px",
-                    fontSize: "1.2rem",
-                    fontWeight: "bold",
-                    color: "#fff",
-                    zIndex: 1000,
-                    backdropFilter: "blur(10px)",
-                    boxShadow: "0 0 30px rgba(255,77,109,0.5)",
-                    animation: "fadeIn 0.3s ease-in-out"
-                }}>
-                    {notification}
-                </div>
-            )}
-
-            {/* HUD overlay */}
             <HUD emitMethods={{ emitMove, emitWorldTransition, emitFinished, emitFell }} />
 
-            {/* 3D Canvas */}
-            <Canvas
-                camera={{ position: [0, 5, 10], fov: 70 }}
-                style={{ position: "absolute", inset: 0 }}
-            >
-                {/* Ambient + directional light */}
-                <ambientLight intensity={0.4} />
-                <directionalLight position={[10, 20, 10]} intensity={1} />
-
-                {/* Remote players (Member 2) */}
+            <Canvas camera={{ position: [0, 5, 10], fov: 70 }} style={{ position: "absolute", inset: 0 }}>
                 <RemotePlayers />
 
-                {/* World 1 (Member 1 implements) */}
-                {currentWorld === 1 && (
+                {/* Hub World — start here, portals lead to levels */}
+                {currentLevel === "hub" && (
+                    <HubWorld
+                        onEnterPortal={handleEnterPortal}
+                        emitMove={emitMove}
+                        emitFell={emitFell}
+                    />
+                )}
+
+                {/* World 1 — Cyberverse (moving + rotating platforms) */}
+                {currentLevel === "cyberverse" && (
                     <World1
                         emitMove={emitMove}
                         emitWorldTransition={emitWorldTransition}
@@ -191,12 +116,21 @@ export default function Game() {
                     />
                 )}
 
-                {/* World 2 (Member 1 implements) */}
-                {currentWorld === 2 && (
+                {/* World 2 — Lava Hell */}
+                {currentLevel === "world2" && (
                     <World2
                         emitMove={emitMove}
                         emitWorldTransition={() => { }}
                         emitFinished={emitFinished}
+                        emitFell={emitFell}
+                    />
+                )}
+
+                {/* World 3 — Honeycomb Fall */}
+                {currentLevel === "honeycomb" && (
+                    <Honeycomb
+                        emitMove={emitMove}
+                        emitWorldTransition={emitWorldTransition}
                         emitFell={emitFell}
                     />
                 )}

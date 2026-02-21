@@ -15,17 +15,21 @@ import { attachChat } from "./socket/chat.js";
 import { ExpressPeerServer } from "peer";
 
 // Load environment variables from .env
-dotenv.config();
+dotenv.config({ override: true });
+
+const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    process.env.CLIENT_URL,
+].filter(Boolean);
 
 // ---- Express App Setup ----
 const app = express();
 app.use(express.json());
 app.use(
     cors({
-        origin: [
-            process.env.CLIENT_URL || "http://localhost:5173",
-            "http://localhost:5174"
-        ],
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true,
     })
@@ -44,10 +48,7 @@ const httpServer = http.createServer(app);
 // ---- Socket.io Server ----
 const io = new Server(httpServer, {
     cors: {
-        origin: [
-            process.env.CLIENT_URL || "http://localhost:5173",
-            "http://localhost:5174"
-        ],
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true,
     },
