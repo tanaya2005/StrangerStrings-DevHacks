@@ -34,6 +34,15 @@ export default function Game() {
 
     // Track when we last emitted a move (client-side throttle)
     const lastEmitTime = useRef(0);
+    
+    // State for notifications
+    const [notification, setNotification] = useState(null);
+
+    // Show notification helper
+    const showNotification = (message, duration = 3000) => {
+        setNotification(message);
+        setTimeout(() => setNotification(null), duration);
+    };
 
     // ---- Socket listeners ----
     useEffect(() => {
@@ -71,7 +80,10 @@ export default function Game() {
         });
 
         // Someone disconnected mid-game
-        socket.on("playerLeft", ({ players }) => {
+        socket.on("playerLeft", ({ playerId, playerName, players }) => {
+            if (playerName) {
+                showNotification(`${playerName} left the game`);
+            }
             if (players) setPlayers(players);
         });
 
@@ -132,6 +144,29 @@ export default function Game() {
 
     return (
         <div style={{ width: "100vw", height: "100vh", position: "relative", background: "#000" }}>
+            {/* Notification overlay */}
+            {notification && (
+                <div style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    background: "rgba(255,77,109,0.9)",
+                    border: "2px solid rgba(255,77,109,1)",
+                    borderRadius: "12px",
+                    padding: "20px 40px",
+                    fontSize: "1.2rem",
+                    fontWeight: "bold",
+                    color: "#fff",
+                    zIndex: 1000,
+                    backdropFilter: "blur(10px)",
+                    boxShadow: "0 0 30px rgba(255,77,109,0.5)",
+                    animation: "fadeIn 0.3s ease-in-out"
+                }}>
+                    {notification}
+                </div>
+            )}
+
             {/* HUD overlay */}
             <HUD emitMethods={{ emitMove, emitWorldTransition, emitFinished, emitFell }} />
 

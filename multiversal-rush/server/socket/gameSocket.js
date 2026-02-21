@@ -53,7 +53,7 @@ function playerCount(room) {
 
 /**
  * After every elimination / finish check, see if only 1 player is left
- * un-eliminated and un-finished → they become the loser (last place).
+ * un-eliminated and un-finished → they become the winner.
  */
 function checkElimination(io, roomId, room) {
     if (room.gameState !== "playing") return;
@@ -62,15 +62,20 @@ function checkElimination(io, roomId, room) {
         (p) => !p.finished && !p.eliminated
     );
 
-    // If only 1 active player remains, eliminate them (last place)
+    // If only 1 active player remains, they win automatically
     if (activePlayers.length === 1) {
-        const loser = activePlayers[0];
-        loser.eliminated = true;
+        const winner = activePlayers[0];
+        winner.finished = true;
+        winner.finishTime = Date.now() - room.startTime;
+        room.finishedOrder.push(winner.id);
         room.gameState = "finished";
 
-        io.to(roomId).emit("playerEliminated", {
-            eliminatedId: loser.id,
-            reason: "Last player remaining",
+        io.to(roomId).emit("playerFinishedRace", {
+            playerId: winner.id,
+            playerName: winner.name,
+            position: room.finishedOrder.length,
+            finishTime: winner.finishTime,
+            finishedOrder: room.finishedOrder,
         });
 
         io.to(roomId).emit("gameFinished", {
@@ -80,7 +85,19 @@ function checkElimination(io, roomId, room) {
                 .map((p) => p.id),
         });
 
-        console.log(`[Room ${roomId}] Game finished. Winner: ${room.finishedOrder[0]}`);
+        console.log(`[Room ${roomId}] Game finished. Winner: ${winner.name}`);
+    }
+
+    // If no active players (all eliminated), end game
+    if (activePlayers.length === 0) {
+        room.gameState = "finished";
+        io.to(roomId).emit("gameFinished", {
+            finishedOrder: room.finishedOrder,
+            eliminatedPlayers: Object.values(room.players)
+                .filter((p) => p.eliminated)
+                .map((p) => p.id),
+        });
+        console.log(`[Room ${roomId}] Game finished. All players eliminated.`);
     }
 }
 
@@ -372,16 +389,17 @@ export function registerGameSocket(io) {
 
             if (player) {
                 console.log(`[Room ${roomId}] ${player.name} disconnected`);
+                
+                // Notify remaining players with player name
+                io.to(roomId).emit("playerLeft", {
+                    playerId: socket.id,
+                    playerName: player.name,
+                    players: getPlayerList(room),
+                });
             }
 
             // Remove player from room
             delete room.players[socket.id];
-
-            // Notify remaining players
-            io.to(roomId).emit("playerLeft", {
-                playerId: socket.id,
-                players: getPlayerList(room),
-            });
 
             // If game is in progress and active players drop too low, handle it
             if (room.gameState === "playing") {
