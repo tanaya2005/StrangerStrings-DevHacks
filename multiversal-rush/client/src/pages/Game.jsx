@@ -17,6 +17,7 @@ import RemotePlayers from "../components/Multiplayer/RemotePlayers";
 import HUD from "../components/UI/HUD";
 import World1 from "../components/Worlds/World1";
 import World2 from "../components/Worlds/World2";
+import WorldCryoVoid from "../components/Worlds/WorldCryoVoid";
 import Voice from "../voice/Voice";
 
 export default function Game() {
@@ -170,7 +171,16 @@ export default function Game() {
                 {currentWorld === 2 && (
                     <World2
                         emitMove={emitMove}
-                        emitWorldTransition={() => { }}
+                        emitWorldTransition={emitWorldTransition}
+                        emitFinished={emitFinished}
+                        emitFell={emitFell}
+                    />
+                )}
+
+                {/* World 3 (Cryo Void — Member 1 implements) */}
+                {currentWorld === 3 && (
+                    <WorldCryoVoid
+                        emitMove={emitMove}
                         emitFinished={emitFinished}
                         emitFell={emitFell}
                     />

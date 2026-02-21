@@ -74,13 +74,19 @@ export default function World1({ emitMove, emitWorldTransition, emitFell }) {
                 {/* Portal label */}
             </group>
 
-            {/* ---- Player (Tanaya's movement + Varun's emit) ---- */}
+            {/* ---- Player ---- */}
             <Player
                 emitMove={emitMove}
                 emitFell={emitFell}
                 emitWorldTransition={emitWorldTransition}
                 world={1}
                 startPosition={[0, 1, 0]}
+                platforms={[
+                    { pos: [0, -0.5, 0], size: [30, 1, 60] }, // Main floor
+                    { pos: [4, 1, -6], size: [4, 0.5, 4] },
+                    { pos: [-4, 2, -14], size: [4, 0.5, 4] },
+                    { pos: [5, 3, -22], size: [4, 0.5, 4] },
+                ]}
             />
         </>
     );
