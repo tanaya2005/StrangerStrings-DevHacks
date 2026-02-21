@@ -12,6 +12,7 @@ import leaderboardRoutes from "./routes/leaderboardRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import { registerGameSocket } from "./socket/gameSocket.js";
 import { attachChat } from "./socket/chat.js";
+import { ExpressPeerServer } from "peer";
 
 // Load environment variables from .env
 dotenv.config();
@@ -52,6 +53,13 @@ registerGameSocket(io);
 
 // ---- Register chat + PeerJS voice signaling (archit2 Task 4) ----
 attachChat(io);
+
+// ---- Mount PeerJS server at /peerjs (fixes 404 in Voice.jsx) ----
+// Voice.jsx connects to: same host, same port, path '/peerjs'
+const peerServer = ExpressPeerServer(httpServer, { path: "/peerjs" });
+app.use("/peerjs", peerServer);
+peerServer.on("connection", (client) => console.log(`[PeerJS] connected: ${client.getId()}`));
+peerServer.on("disconnect", (client) => console.log(`[PeerJS] disconnected: ${client.getId()}`));
 
 // ---- Connect MongoDB ----
 connectDB().catch((err) =>

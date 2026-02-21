@@ -36,7 +36,7 @@ export default function Voice({ name, room }) {
                 localStreamRef.current = stream;
 
                 const PEER_HOST = window.__PEER_HOST || window.location.hostname;
-                const PEER_PORT = window.__PEER_PORT || 3000;
+                const PEER_PORT = window.__PEER_PORT || 5000;  // same port as our Express server
                 const peer = new window.Peer(undefined, {
                     host: PEER_HOST,
                     port: PEER_PORT,
