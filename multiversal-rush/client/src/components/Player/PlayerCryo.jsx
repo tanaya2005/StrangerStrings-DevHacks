@@ -5,6 +5,7 @@
 // ============================================================
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { aabbCollision } from '../../utils/collision';
 import useStore from '../../store/store';
@@ -63,6 +64,19 @@ export default React.forwardRef(function PlayerCryo({
 }, ref) {
     const speedMultiplier = useRef(1.0);
     const playerRef = useRef();
+
+    // ---- Load Human/Panda Model ----
+    const { scene } = useGLTF('/models/red-panda/scene.gltf');
+
+    // Optimize model for FPS
+    useEffect(() => {
+        scene.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = false;
+                child.receiveShadow = false;
+            }
+        });
+    }, [scene]);
 
     // Sync external ref if provided
     React.useImperativeHandle(ref, () => ({
@@ -129,9 +143,18 @@ export default React.forwardRef(function PlayerCryo({
         pos.x += velocityXZ.current.x * delta;
         pos.z += velocityXZ.current.z * delta;
 
-        // ---- 2. Crouch Scale ----
+        // ---- 2. Crouch Scale & Rotation ----
         const targetScaleY = isCrouching ? 0.5 : 1.0;
-        playerRef.current.scale.y = THREE.MathUtils.lerp(playerRef.current.scale.y, targetScaleY, 10 * delta);
+        // Base scale for the model is 1.2
+        const targetScale = isCrouching ? 0.6 : 1.2;
+        playerRef.current.scale.y = THREE.MathUtils.lerp(playerRef.current.scale.y, targetScale, 10 * delta);
+
+        // Character Rotation: Face the direction of velocity
+        if (velocityXZ.current.lengthSq() > 0.1) {
+            const targetAngle = Math.atan2(velocityXZ.current.x, velocityXZ.current.z);
+            const targetRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
+            playerRef.current.quaternion.slerp(targetRotation, 10 * delta);
+        }
 
         // ---- 3. Gravity & Jumping ----
         if (keys.current[' '] && isGrounded.current && !isCrouching) {
@@ -224,9 +247,15 @@ export default React.forwardRef(function PlayerCryo({
     });
 
     return (
-        <mesh ref={playerRef} position={startPosition} castShadow>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshStandardMaterial color="#00ffcc" emissive="#00ffcc" emissiveIntensity={0.15} />
-        </mesh>
+        <group ref={playerRef} position={startPosition} scale={[1.2, 1.2, 1.2]}>
+            {/* Red Panda Model */}
+            <primitive object={scene} />
+
+            {/* Invisible Collider for AABB computations */}
+            <mesh visible={false}>
+                <boxGeometry args={[1, 1, 1]} />
+                <meshBasicMaterial />
+            </mesh>
+        </group>
     );
 });
