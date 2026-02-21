@@ -7,12 +7,23 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import Player from '../Player/Player';
 
-export default function World2({ emitMove, emitFinished, emitFell }) {
+export default function World2({ emitMove, emitFinished, emitFell, emitWorldTransition }) {
     const portalRef = useRef();
 
-    useFrame((_, delta) => {
+    useFrame((state, delta) => {
         if (portalRef.current) portalRef.current.rotation.y += delta * 1.2;
+
+        // Portal collision check
+        if (playerRef.current) {
+            const pos = playerRef.current.position;
+            // Portal is at [0, 5.5, -34]
+            if (pos.z < -30 && pos.z > -38 && Math.abs(pos.x) < 2 && pos.y > 4) {
+                emitWorldTransition?.(3);
+            }
+        }
     });
+
+    const playerRef = useRef();
 
     return (
         <>
@@ -78,11 +89,20 @@ export default function World2({ emitMove, emitFinished, emitFell }) {
 
             {/* ---- Player ---- */}
             <Player
+                ref={playerRef}
                 emitMove={emitMove}
                 emitFell={emitFell}
-                emitWorldTransition={() => { }}
+                emitWorldTransition={emitWorldTransition}
                 world={2}
                 startPosition={[0, 1.5, -5]}
+                platforms={[
+                    { pos: [0, -0.5, -15], size: [30, 1, 60] },
+                    { pos: [0, 0.5, -5], size: [5, 0.5, 5] },
+                    { pos: [-5, 1.5, -12], size: [5, 0.5, 5] },
+                    { pos: [5, 2.5, -19], size: [5, 0.5, 5] },
+                    { pos: [-3, 3.5, -27], size: [5, 0.5, 5] },
+                    { pos: [0, 4, -34], size: [5, 0.5, 5] },
+                ]}
             />
         </>
     );
