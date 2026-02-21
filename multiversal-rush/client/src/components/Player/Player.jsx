@@ -7,8 +7,8 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import useStore from '../../store/store';
 import { useGLTF } from '@react-three/drei';
+import useStore from '../../store/store';
 import { checkAABB, resolveCollisionY } from '../../utils/collision';
 
 const MOVE_SPEED = 10;
@@ -63,7 +63,7 @@ export default function Player({
     const { camera } = useThree();
 
     // ---- Load Human Model ----
-    const { scene } = useGLTF('/models/glTF/scene.gltf');
+    const { scene } = useGLTF('/models/red-panda/scene.gltf');
 
     // Optimize model for FPS
     useEffect(() => {

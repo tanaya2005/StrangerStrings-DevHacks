@@ -95,7 +95,12 @@ export default function Game() {
     // Handle portal entry from HubWorld
     const handleEnterPortal = useCallback((portalId) => {
         setCurrentLevel(portalId);
-    }, []);
+        // Update world tracking based on portal
+        if (portalId === 'cyberverse') setCurrentWorld(1);
+        else if (portalId === 'honeycomb') setCurrentWorld(3);
+        else if (portalId === 'cryovoid') setCurrentWorld(4);
+        else if (portalId === 'hub') setCurrentWorld(0);
+    }, [setCurrentWorld]);
 
     return (
         <div style={{ width: "100vw", height: "100vh", position: "relative", background: "#000" }}>
