@@ -77,19 +77,6 @@ export default React.forwardRef(function PlayerCryo({
     }, [scene]);
     const playerRef = useRef();
 
-    // ---- Load Human/Panda Model ----
-    const { scene } = useGLTF('/models/red-panda/scene.gltf');
-
-    // Optimize model for FPS
-    useEffect(() => {
-        scene.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = false;
-                child.receiveShadow = false;
-            }
-        });
-    }, [scene]);
-
     // Sync external ref if provided
     React.useImperativeHandle(ref, () => ({
         mesh: playerRef.current,
