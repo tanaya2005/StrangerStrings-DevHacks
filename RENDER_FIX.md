@@ -10,19 +10,20 @@ Change Start Command from `npm run dev` to `npm start`
 ## Error 2: `Cannot find package 'express'`
 
 ### Cause
-The build command isn't running in the correct directory, so dependencies aren't being installed.
+The build command is set to `npm run build` instead of `npm install`, so dependencies are never installed.
 
 ### Solution - Fix in Render Dashboard
 
 1. **Go to Render Dashboard**: https://dashboard.render.com/
 2. **Click on your service**: `strangerstrings-devhacks`
 3. **Go to Settings tab**
-4. **Verify these settings**:
-   - **Root Directory**: `multiversal-rush/server` ⚠️ IMPORTANT
-   - **Build Command**: `npm install`
+4. **Find "Build Command"** and change it from `npm run build` to `npm install` ⚠️ CRITICAL
+5. **Verify these settings**:
+   - **Root Directory**: `multiversal-rush/server`
+   - **Build Command**: `npm install` (NOT `npm run build`)
    - **Start Command**: `npm start`
-5. **Click "Save Changes"**
-6. **Manual Redeploy**: Click "Manual Deploy" → "Deploy latest commit"
+6. **Click "Save Changes"**
+7. **Manual Redeploy**: Click "Manual Deploy" → "Deploy latest commit"
 
 ### Why Root Directory Matters
 
@@ -46,7 +47,7 @@ Make sure your Render service has these exact settings:
 Name: strangerstrings-devhacks
 Environment: Node
 Root Directory: multiversal-rush/server
-Build Command: npm install
+Build Command: npm install (NOT npm run build!)
 Start Command: npm start
 ```
 
