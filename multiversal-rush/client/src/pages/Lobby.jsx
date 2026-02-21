@@ -163,6 +163,8 @@ export default function Lobby() {
             roomId: newRoomCode,
             playerName,
         });
+        // Remove focus from the input so WASD doesn't type into it
+        if (document.activeElement) document.activeElement.blur();
     }
 
     function handleJoinRoom() {
@@ -173,6 +175,8 @@ export default function Lobby() {
             roomId: inputRoom.trim().toUpperCase(),
             playerName,
         });
+        // Remove focus from the input so WASD doesn't type into it
+        if (document.activeElement) document.activeElement.blur();
     }
 
     function handleReady() {
@@ -190,7 +194,7 @@ export default function Lobby() {
     function handleLogout() {
         if (socket.connected) socket.disconnect();
         logout();
-        navigate("/login");
+        navigate("/");
     }
 
     // ---- Render ----
@@ -209,7 +213,7 @@ export default function Lobby() {
                         </h1>
                         <p className="lobby-subtitle">Waiting Room</p>
                     </div>
-                    <button 
+                    <button
                         onClick={handleLogout}
                         style={{
                             background: 'rgba(255,77,109,0.2)',
@@ -250,9 +254,9 @@ export default function Lobby() {
                         <div style={{ marginTop: '10px', textAlign: 'center' }}>
                             <span style={{ color: '#888', fontSize: '0.9rem' }}>or</span>
                         </div>
-                        <button 
-                            className="btn-join" 
-                            onClick={handleCreateRoom} 
+                        <button
+                            className="btn-join"
+                            onClick={handleCreateRoom}
                             id="btn-create-room"
                             style={{ width: '100%', marginTop: '10px', background: 'rgba(0,255,200,0.15)' }}
                         >
