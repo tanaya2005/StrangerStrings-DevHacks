@@ -1,229 +1,339 @@
 // ============================================================
-//  voice/Voice.jsx — WebRTC voice chat (PeerJS)
-//  Source: archit2 (Task 4) — restyled for cyberpunk UI
+//  voice/Voice.jsx — WebRTC voice chat (Livekit SFU)
+//  Member 4 (archit2) — Replaced PeerJS with Livekit
 //  Auto-connects players in the same room. Max 5 users.
 // ============================================================
 import React, { useEffect, useRef, useState } from 'react';
-import socket from '../socket/socket';
-
-// PeerJS is loaded from CDN in index.html to avoid bundling issues
-// Make sure: <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-// is in public/index.html — we reference window.Peer below
+import { Room, RoomEvent } from 'livekit-client';
 
 export default function Voice({ name, room }) {
     const [connectedCount, setConnectedCount] = useState(0);
     const [muted, setMuted] = useState(false);
     const [deafened, setDeafened] = useState(false);
     const [error, setError] = useState('');
+    const [connecting, setConnecting] = useState(false);
 
-    const localStreamRef = useRef(null);
-    const peerRef = useRef(null);
-    const remoteAudioRefs = useRef(new Map());
+    const roomRef = useRef(null);
+    const deafenedRef = useRef(deafened);
 
+    // Keep deafenedRef in sync with state
     useEffect(() => {
-        let mounted = true;
+        deafenedRef.current = deafened;
+    }, [deafened]);
 
-        async function start() {
+    /**
+     * Initialize Livekit connection
+     */
+    useEffect(() => {
+        if (!name || !room) {
+            console.log('[Voice] Missing name or room, skipping connection');
+            return;
+        }
+
+        let isMounted = true;
+        let liveKitRoom = null;
+
+        async function connectToRoom() {
             try {
-                // Check PeerJS is available (loaded from CDN)
-                if (typeof window.Peer === 'undefined') {
-                    console.warn('[Voice] PeerJS not loaded — voice chat unavailable');
-                    setError('Voice unavailable (PeerJS not loaded)');
+                setConnecting(true);
+                console.log(`[Voice] Connecting to room: ${room} as ${name}`);
+
+                // Fetch token from backend
+                const tokenRes = await fetch('/api/voice/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerName: name, roomId: room }),
+                });
+
+                if (!tokenRes.ok) {
+                    const errorText = await tokenRes.text();
+                    throw new Error(`Token fetch failed (${tokenRes.status}): ${errorText}`);
+                }
+
+                const { token, url } = await tokenRes.json();
+
+                if (!isMounted) return;
+
+                // Connect to Livekit server
+                liveKitRoom = new Room();
+                await liveKitRoom.connect(url, token);
+
+                // Publish local tracks
+                await liveKitRoom.localParticipant.setMicrophoneEnabled(true);
+
+                if (!isMounted) {
+                    liveKitRoom.disconnect();
                     return;
                 }
 
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                localStreamRef.current = stream;
+                roomRef.current = liveKitRoom;
 
-                const PEER_HOST = window.__PEER_HOST || window.location.hostname;
-                const PEER_PORT = window.__PEER_PORT || 5000;  // same port as our Express server
-                const peer = new window.Peer(undefined, {
-                    host: PEER_HOST,
-                    port: PEER_PORT,
-                    path: '/peerjs',
-                });
-                peerRef.current = peer;
+                // ---- Room event handlers ----
+                const onParticipantConnected = (participant) => {
+                    console.log(`[Voice] Participant joined: ${participant.identity || participant.name}`);
+                    updateParticipantCount(liveKitRoom);
+                };
 
-                peer.on('open', (id) => {
-                    socket.emit('peer-join', { peerId: id, name, room });
-                });
+                const onParticipantDisconnected = (participant) => {
+                    console.log(`[Voice] Participant left: ${participant.identity || participant.name}`);
+                    updateParticipantCount(liveKitRoom);
+                };
 
-                peer.on('call', (call) => {
-                    call.answer(localStreamRef.current);
-                    call.on('stream', (remoteStream) => {
-                        if (mounted) attachRemoteStream(call.peer, remoteStream);
-                    });
-                });
+                const onRoomDisconnected = () => {
+                    console.log('[Voice] Disconnected from Livekit');
+                    if (isMounted) setConnectedCount(0);
+                };
 
-                peer.on('error', (err) => {
-                    console.warn('[Voice] PeerJS error:', err.type);
-                    setError(`Voice error: ${err.type}`);
-                });
+                const onTrackSubscribed = (track, pub) => {
+                    if (track.kind === 'audio') {
+                        console.log('[Voice] Audio track subscribed, attaching...');
+                        const element = track.attach();
+                        element.style.display = 'none';
+                        // Respect existing deafen state using Ref
+                        if (isMounted && deafenedRef.current) {
+                            pub.setEnabled(false);
+                            console.log('[Voice] New track muted due to Deafen');
+                        }
+                    }
+                };
 
-                socket.on('peers', (list) => {
-                    if (!mounted) return;
-                    connectToPeers(list);
-                });
+                const onTrackUnsubscribed = (track) => {
+                    track.detach();
+                };
+
+                liveKitRoom.on(RoomEvent.ParticipantConnected, onParticipantConnected);
+                liveKitRoom.on(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
+                liveKitRoom.on(RoomEvent.Disconnected, onRoomDisconnected);
+                liveKitRoom.on(RoomEvent.TrackSubscribed, onTrackSubscribed);
+                liveKitRoom.on(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
+
+                console.log('[Voice] Connected to Livekit');
+                setError('');
+                setConnecting(false);
+                updateParticipantCount(liveKitRoom);
+
             } catch (err) {
-                if (err.name === 'NotAllowedError') {
-                    setError('Microphone access denied');
-                } else {
-                    console.warn('[Voice] error:', err.message);
+                console.error('[Voice] Connection error:', err);
+                if (isMounted) {
+                    setError(`Connection failed: ${err.message || 'Check network or credentials'}`);
+                    setConnecting(false);
                 }
             }
         }
 
-        start();
+        connectToRoom();
 
+        // Cleanup on unmount
         return () => {
-            mounted = false;
-            const peer = peerRef.current;
-            if (peer && !peer.destroyed) peer.destroy();
-            const stream = localStreamRef.current;
-            if (stream) stream.getTracks().forEach((t) => t.stop());
-            remoteAudioRefs.current.forEach((el) => {
-                el.pause();
-                el.srcObject = null;
-                el.remove();
-            });
-            remoteAudioRefs.current.clear();
-            socket.off('peers');
-        };
-    }, [name, room]);
-
-    function attachRemoteStream(peerId, stream) {
-        let audio = remoteAudioRefs.current.get(peerId);
-        if (!audio) {
-            audio = document.createElement('audio');
-            audio.autoplay = true;
-            audio.playsInline = true;
-            audio.style.display = 'none';
-            document.body.appendChild(audio);
-            remoteAudioRefs.current.set(peerId, audio);
-        }
-        audio.srcObject = stream;
-        audio.muted = deafened;
-        setConnectedCount(remoteAudioRefs.current.size);
-    }
-
-    function connectToPeers(list) {
-        const peer = peerRef.current;
-        if (!peer || !localStreamRef.current) return;
-
-        const participants = list.filter((p) => p.peerId);
-        if (participants.length > 5) return;
-
-        participants.forEach((p) => {
-            if (p.peerId === peer.id) return;
-            if (remoteAudioRefs.current.has(p.peerId)) return;
-            try {
-                const call = peer.call(p.peerId, localStreamRef.current);
-                call.on('stream', (remoteStream) => {
-                    attachRemoteStream(call.peer, remoteStream);
-                });
-            } catch (e) {
-                console.warn('[Voice] call failed:', e);
+            isMounted = false;
+            if (liveKitRoom) {
+                try {
+                    liveKitRoom.disconnect();
+                    console.log('[Voice] Room disconnected on unmount');
+                } catch (err) {
+                    console.warn('[Voice] Disconnect error:', err.message);
+                }
             }
-        });
+        };
+    }, [name, room]); // Removed deafened from deps to avoid reconnect on toggle
+
+    /**
+     * Count participants and update state
+     */
+    function updateParticipantCount(liveKitRoom) {
+        try {
+            const participants = liveKitRoom.participants;
+            const count = participants.size + 1; // +1 for self
+            setConnectedCount(count);
+            console.log(`[Voice] Participants: ${count}`);
+        } catch (err) {
+            console.error('[Voice] Count error:', err.message);
+        }
     }
 
-    function toggleMute() {
-        const stream = localStreamRef.current;
-        if (!stream) return;
-        const track = stream.getAudioTracks()[0];
-        if (!track) return;
-        track.enabled = !track.enabled;
-        setMuted(!track.enabled);
+    /**
+     * Toggle local mute
+     */
+    async function toggleMute() {
+        try {
+            const liveKitRoom = roomRef.current;
+            if (liveKitRoom && liveKitRoom.localParticipant) {
+                const nextMuted = !muted;
+                // Microphone is "enabled" when NOT muted
+                await liveKitRoom.localParticipant.setMicrophoneEnabled(!nextMuted);
+                setMuted(nextMuted);
+                console.log(`[Voice] Microphone ${nextMuted ? 'muted' : 'unmuted'}`);
+            }
+        } catch (err) {
+            console.error('[Voice] Mute toggle failed:', err.message);
+        }
     }
 
+    /**
+     * Toggle deafen (mute incoming audio)
+     */
     function toggleDeafen() {
-        const newDeaf = !deafened;
-        remoteAudioRefs.current.forEach((audio) => { audio.muted = newDeaf; });
-        setDeafened(newDeaf);
+        try {
+            const liveKitRoom = roomRef.current;
+            if (!liveKitRoom) return;
+
+            const newDeafened = !deafened;
+
+            // Defensively handle different SDK structures
+            const remoteParticipants = liveKitRoom.remoteParticipants || liveKitRoom.participants;
+
+            if (remoteParticipants) {
+                remoteParticipants.forEach((participant) => {
+                    // Skip local participant if using 'participants' map
+                    if (participant.isLocal) return;
+
+                    const publications = participant.trackPublications || participant.audioTracks;
+                    if (publications) {
+                        publications.forEach((pub) => {
+                            // Only affect audio tracks
+                            const kind = pub.kind || (pub.track && pub.track.kind);
+                            if (kind === 'audio') {
+                                if (typeof pub.setEnabled === 'function') {
+                                    pub.setEnabled(!newDeafened);
+                                } else if (pub.track && pub.track.mediaStreamTrack) {
+                                    pub.track.mediaStreamTrack.enabled = !newDeafened;
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
+            setDeafened(newDeafened);
+            console.log(`[Voice] Deafen ${newDeafened ? 'enabled' : 'disabled'}`);
+        } catch (err) {
+            console.error('[Voice] Deafen toggle failed:', err);
+        }
     }
 
+    // Render voice widget
     return (
         <div style={styles.container}>
-            <div style={styles.header}>🎙️ Voice Chat</div>
-            {error ? (
-                <div style={styles.error}>{error}</div>
-            ) : (
-                <>
-                    <div style={styles.status}>
-                        Connected: {connectedCount} / 4 others
-                    </div>
-                    <div style={styles.btnRow}>
-                        <button
-                            style={{ ...styles.btn, ...(muted ? styles.btnActive : {}) }}
-                            onClick={toggleMute}
-                        >
-                            {muted ? '🔇 Unmute' : '🎤 Mute'}
-                        </button>
-                        <button
-                            style={{ ...styles.btn, ...(deafened ? styles.btnActive : {}) }}
-                            onClick={toggleDeafen}
-                        >
-                            {deafened ? '🔊 Undeafen' : '🔈 Deafen'}
-                        </button>
-                    </div>
-                    <div style={styles.hint}>Auto-connects players in room. Max 5.</div>
-                </>
+            <div style={styles.header}>
+                <span>🎤 Voice Chat</span>
+                <span style={styles.statusBadge}>
+                    {connecting ? (
+                        <span style={styles.connecting}>↻ Connecting...</span>
+                    ) : (
+                        <span style={styles.connected}>● {connectedCount}</span>
+                    )}
+                </span>
+            </div>
+
+            {error && (
+                <div style={styles.errorBox}>
+                    <p style={styles.errorText}>{error}</p>
+                </div>
             )}
+
+            <div style={styles.buttonRow}>
+                <button
+                    onClick={toggleMute}
+                    style={{
+                        ...styles.button,
+                        backgroundColor: muted ? '#ff3333' : '#33aa33',
+                    }}
+                    title={muted ? 'Click to unmute' : 'Click to mute'}
+                >
+                    {muted ? '🔇 Muted' : '🎤 Unmuted'}
+                </button>
+
+                <button
+                    onClick={toggleDeafen}
+                    style={{
+                        ...styles.button,
+                        backgroundColor: deafened ? '#ff3333' : '#3366ff',
+                    }}
+                    title={deafened ? 'Click to undeafen' : 'Click to deafen'}
+                >
+                    {deafened ? '🔊 Deafened' : '🔉 Hearing'}
+                </button>
+            </div>
+
+            <div style={styles.infoText}>
+                {connectedCount <= 1 && 'Waiting for others...'}
+                {connectedCount === 2 && '1 other player'}
+                {connectedCount > 2 && `${connectedCount - 1} other players`}
+            </div>
         </div>
     );
 }
 
+// ============================================================
+//  Cyberpunk styling
+// ============================================================
 const styles = {
     container: {
-        background: 'rgba(8,15,35,0.85)',
-        border: '1px solid rgba(0,255,200,0.2)',
-        borderRadius: '0.75rem',
-        padding: '0.9rem 1rem',
-        backdropFilter: 'blur(12px)',
-        color: '#e0e8ff',
-        fontFamily: '"Exo 2", sans-serif',
-        fontSize: '0.85rem',
+        backgroundColor: 'rgba(20, 20, 40, 0.95)',
+        border: '2px solid #00ff88',
+        borderRadius: '8px',
+        padding: '12px',
+        color: '#00ff88',
+        fontFamily: "'Courier New', monospace",
+        fontSize: '12px',
+        maxWidth: '280px',
+        boxShadow: '0 0 10px rgba(0, 255, 136, 0.3)',
     },
     header: {
-        fontWeight: 700,
-        color: '#00ffe0',
-        marginBottom: '0.5rem',
-        letterSpacing: '0.05em',
-    },
-    status: {
-        color: 'rgba(160,200,255,0.7)',
-        marginBottom: '0.6rem',
-        fontSize: '0.78rem',
-    },
-    btnRow: {
         display: 'flex',
-        gap: '0.5rem',
-        marginBottom: '0.5rem',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '10px',
+        borderBottom: '1px solid #00ff88',
+        paddingBottom: '8px',
+        fontWeight: 'bold',
+        fontSize: '14px',
     },
-    btn: {
+    statusBadge: {
+        display: 'flex',
+        alignItems: 'center',
+        fontSize: '11px',
+    },
+    connecting: {
+        color: '#ffaa00',
+    },
+    connected: {
+        color: '#00ff88',
+        fontWeight: 'bold',
+    },
+    errorBox: {
+        backgroundColor: '#ff3333',
+        color: '#fff',
+        padding: '8px',
+        borderRadius: '4px',
+        marginBottom: '8px',
+        fontSize: '11px',
+    },
+    errorText: {
+        margin: 0,
+        lineHeight: '1.3',
+    },
+    buttonRow: {
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '10px',
+    },
+    button: {
         flex: 1,
-        padding: '0.4rem 0.6rem',
-        background: 'rgba(255,255,255,0.06)',
-        border: '1px solid rgba(0,255,200,0.2)',
-        borderRadius: '0.4rem',
-        color: '#c0d8ff',
+        padding: '8px',
+        border: '1px solid #00ff88',
+        borderRadius: '4px',
+        color: '#fff',
+        fontFamily: "'Courier New', monospace",
+        fontSize: '11px',
+        fontWeight: 'bold',
         cursor: 'pointer',
-        fontSize: '0.78rem',
-        fontFamily: '"Exo 2", sans-serif',
-        transition: 'all 0.15s',
+        transition: 'all 0.2s',
     },
-    btnActive: {
-        background: 'rgba(255,80,80,0.15)',
-        border: '1px solid rgba(255,80,80,0.4)',
-        color: '#ff7070',
-    },
-    error: {
-        color: '#ff7070',
-        fontSize: '0.75rem',
-        marginTop: '0.3rem',
-    },
-    hint: {
-        color: 'rgba(160,200,255,0.35)',
-        fontSize: '0.7rem',
+    infoText: {
+        textAlign: 'center',
+        fontSize: '10px',
+        color: '#00ff88',
+        opacity: 0.7,
     },
 };

@@ -5,15 +5,10 @@ export default defineConfig({
     plugins: [react()],
     server: {
         port: 5173,
-        // Proxy API calls to the backend so no CORS issues in dev
+        // Proxy API calls to the backend (Socket.IO connects directly)
         proxy: {
             "/api": {
                 target: "http://localhost:5000",
-                changeOrigin: true,
-            },
-            "/socket.io": {
-                target: "http://localhost:5000",
-                ws: true,
                 changeOrigin: true,
             },
         },

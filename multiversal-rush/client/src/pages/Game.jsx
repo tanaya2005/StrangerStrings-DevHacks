@@ -17,6 +17,7 @@ import RemotePlayers from "../components/Multiplayer/RemotePlayers";
 import HUD from "../components/UI/HUD";
 import World1 from "../components/Worlds/World1";
 import World2 from "../components/Worlds/World2";
+import Voice from "../voice/Voice";
 
 export default function Game() {
     const navigate = useNavigate();
@@ -31,6 +32,8 @@ export default function Game() {
     const setMyFinishResult = useStore((s) => s.setMyFinishResult);
     const setStartTime = useStore((s) => s.setStartTime);
     const setPlayers = useStore((s) => s.setPlayers);
+    const playerName = useStore((s) => s.playerName);
+    const roomId = useStore((s) => s.roomId);
 
     // Track when we last emitted a move (client-side throttle)
     const lastEmitTime = useRef(0);
@@ -135,10 +138,17 @@ export default function Game() {
             {/* HUD overlay */}
             <HUD emitMethods={{ emitMove, emitWorldTransition, emitFinished, emitFell }} />
 
+            {/* Voice chat widget (bottom-right) */}
+            {playerName && roomId && (
+                <div style={{ position: "absolute", bottom: "20px", right: "20px", zIndex: 100 }}>
+                    <Voice name={playerName} room={roomId} />
+                </div>
+            )}
+
             {/* 3D Canvas */}
             <Canvas
                 camera={{ position: [0, 5, 10], fov: 70 }}
-                style={{ position: "absolute", inset: 0 }}
+                style={{ position: "absolute", inset: 0, zIndex: 1 }}
             >
                 {/* Ambient + directional light */}
                 <ambientLight intensity={0.4} />

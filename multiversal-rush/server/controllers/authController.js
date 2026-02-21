@@ -3,9 +3,11 @@
 //  Merged: Atharva's email-based auth + Varun's DOB age check
 //  Login: email + password
 //  Signup: email + username + password + dateOfBirth (13+)
+//  Fallback: In-memory mock DB when MongoDB is unavailable
 // ============================================================
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { mockFindUserByEmail, mockCreateUser, seedMockDB } from "../mockDB.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "multiversal_rush_secret_key";
 const JWT_EXPIRES = "30d";   // Atharva's preference
@@ -59,7 +61,9 @@ export async function signup(req, res) {
         }
 
         // --- Check email already taken ---
-        const emailExists = await User.findOne({ email: email.toLowerCase().trim() });
+        const emailExists = await User.findOne({ email: email.toLowerCase().trim() }).catch(() =>
+            mockFindUserByEmail(email)
+        );
         if (emailExists) {
             return res.status(409).json({ error: "An account with this email already exists" });
         }
@@ -67,18 +71,28 @@ export async function signup(req, res) {
         // --- Check username already taken ---
         const usernameExists = await User.findOne({
             username: { $regex: new RegExp(`^${username}$`, "i") },
-        });
+        }).catch(() => null);
         if (usernameExists) {
             return res.status(409).json({ error: "Username is already taken" });
         }
 
         // --- Create user (password hashed by pre-save hook) ---
-        const user = await User.create({
-            email: email.toLowerCase().trim(),
-            username: username.trim(),
-            password,                   // pre-save hook will hash this
-            dateOfBirth: new Date(dateOfBirth),
-        });
+        let user;
+        try {
+            user = await User.create({
+                email: email.toLowerCase().trim(),
+                username: username.trim(),
+                password,                   // pre-save hook will hash this
+                dateOfBirth: new Date(dateOfBirth),
+            });
+        } catch (dbErr) {
+            // MongoDB unavailable — use mock DB instead
+            console.warn("⚠️  Using mock DB for signup (MongoDB unavailable)");
+            user = await mockCreateUser(email, username, password, dateOfBirth);
+            if (!user) {
+                return res.status(409).json({ error: "Email already in use" });
+            }
+        }
 
         const token = generateToken(user._id, user.username);
 
@@ -117,7 +131,15 @@ export async function login(req, res) {
             return res.status(400).json({ error: "Email and password are required" });
         }
 
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        // Try MongoDB first, fall back to mock DB if unavailable
+        let user;
+        try {
+            user = await User.findOne({ email: email.toLowerCase().trim() });
+        } catch (dbErr) {
+            console.warn("⚠️  MongoDB unavailable, trying mock DB for login");
+            user = await mockFindUserByEmail(email);
+        }
+        
         if (!user) {
             return res.status(401).json({ error: "Invalid email or password" });
         }

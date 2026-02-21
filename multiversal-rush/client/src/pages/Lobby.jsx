@@ -129,11 +129,18 @@ export default function Lobby() {
 
     function handleJoin() {
         if (!inputRoom.trim()) { setError("Enter a room code"); return; }
-        if (!playerName) { setError("Go back and set your name first"); return; }
+        
+        // Auto-generate name if missing (safety fallback)
+        let name = playerName;
+        if (!name) {
+            name = "DemoPlayer_" + Math.floor(Math.random() * 1000);
+            useStore.setState({ playerName: name });
+        }
+        
         setError("");
         socket.emit("joinRoom", {
             roomId: inputRoom.trim().toUpperCase(),
-            playerName,
+            playerName: name,
         });
     }
 
