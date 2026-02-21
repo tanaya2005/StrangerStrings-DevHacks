@@ -12,6 +12,10 @@ const useStore = create((set, get) => ({
     setPlayerName: (name) => set({ playerName: name }),
     setPlayerId: (id) => set({ playerId: id }),
 
+    // ---- Avatar ----
+    avatar: "/models/penguin/scene.gltf",   // default
+    setAvatar: (path) => set({ avatar: path }),
+
     // ---- Room ----
     roomId: null,
     setRoomId: (id) => set({ roomId: id }),

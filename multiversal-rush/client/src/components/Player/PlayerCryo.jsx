@@ -63,8 +63,9 @@ export default React.forwardRef(function PlayerCryo({
     platforms = [],
 }, ref) {
     const speedMultiplier = useRef(1.0);
-    // ---- Load Human/Panda Model ----
-    const { scene } = useGLTF('/models/red-panda/scene.gltf');
+    // ---- Load chosen avatar from Zustand store (same as regular Player) ----
+    const avatarPath = useStore((s) => s.avatar);
+    const { scene } = useGLTF(avatarPath);
 
     // Optimize model for FPS
     useEffect(() => {
@@ -170,7 +171,17 @@ export default React.forwardRef(function PlayerCryo({
         // Player AABB (0.5 half-extents for size 1)
         const pSize = { w: 0.5, h: 0.5, d: 0.5 };
 
-        platforms.forEach((plat) => {
+        // Combine static platforms from props with dynamic ones from the Zustand store
+        const allPlatforms = [...platforms];
+        Object.values(useStore.getState().platforms).forEach((plat) => {
+            allPlatforms.push({
+                size: plat.size,
+                pos: [plat.position.x, plat.position.y, plat.position.z],
+                isSlippery: plat.isSlippery,
+            });
+        });
+
+        allPlatforms.forEach((plat) => {
             const platSize = { w: plat.size[0] / 2, h: plat.size[1] / 2, d: plat.size[2] / 2 };
             const platPos = { x: plat.pos[0], y: plat.pos[1], z: plat.pos[2] };
 
@@ -198,13 +209,23 @@ export default React.forwardRef(function PlayerCryo({
                         velocityXZ.current.z -= Math.sin(angle) * 15 * delta;
                     }
                 }
-            } else if (aabbCollision({ x: pos.x, y: pos.y, z: pos.z }, pSize, platPos, platSize)) {
-                // Regular AABB check
-                if (velocityY.current <= 0 && pos.y >= platPos.y + platSize.h - 0.2) {
-                    pos.y = platPos.y + platSize.h + pSize.h;
-                    velocityY.current = 0;
-                    groundedThisFrame = true;
-                    if (plat.isSlippery) onIceThisFrame = true;
+            } else {
+                // Regular Platform check (using stable logic from Player.jsx)
+                const minX = plat.pos[0] - plat.size[0] / 2;
+                const maxX = plat.pos[0] + plat.size[0] / 2;
+                const minZ = plat.pos[2] - plat.size[2] / 2;
+                const maxZ = plat.pos[2] + plat.size[2] / 2;
+                const surfaceY = plat.pos[1] + plat.size[1] / 2; // top of platform
+
+                // Check horizontal bounds
+                if (pos.x >= minX && pos.x <= maxX && pos.z >= minZ && pos.z <= maxZ) {
+                    // Check vertical snap bounds
+                    if (velocityY.current <= 0 && pos.y >= surfaceY - 0.5 && pos.y <= surfaceY + 1.0) {
+                        pos.y = surfaceY; // snapped directly to top
+                        velocityY.current = 0;
+                        groundedThisFrame = true;
+                        if (plat.isSlippery) onIceThisFrame = true;
+                    }
                 }
             }
         });

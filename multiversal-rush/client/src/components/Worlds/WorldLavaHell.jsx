@@ -225,7 +225,7 @@ function RollingBoulder({ startPos, endPos, speed = 6 }) {
 // ============================================================
 //  MAIN WORLD
 // ============================================================
-export default function WorldLavaHell({ emitMove, emitFinished, emitFell }) {
+export default function WorldLavaHell({ emitMove, emitFinished, emitFell, emitWorldTransition }) {
     const playerRef = useRef();
     const portalRef = useRef();
     const geyserPlatsRef = useRef({});

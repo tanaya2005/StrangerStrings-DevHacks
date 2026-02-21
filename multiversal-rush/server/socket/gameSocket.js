@@ -29,8 +29,8 @@ const rooms = {};
 // ---- Constants ----
 const MAX_PLAYERS_PER_ROOM = 5;   // Hard cap per room
 const MOVE_THROTTLE_MS = 50;       // Min ms between move broadcasts
-const COUNTDOWN_SECONDS = 3;       // Countdown before race starts
-const MATCH_RESULTS_DURATION = 10000; // 10 seconds
+const LOBBY_COUNTDOWN_SECONDS = 15;  // seconds in 3D lobby before map loads
+const MATCH_RESULTS_DURATION = 10000; // 10 seconds show results
 
 // Trophy distribution
 const TROPHY_REWARDS = {
@@ -45,17 +45,18 @@ const TROPHY_REWARDS = {
 function createRoom(roomId) {
     return {
         players: {},
-        gameState: "waiting",   // waiting → countdown → playing → finished
+        gameState: "waiting",   // waiting → lobby → playing → finished
         startTime: null,
-        finishedOrder: [],       // socket IDs in finish order
-        chatMessages: [],        // waiting-room chat history
-        windDirection: 1,        // 1 = right, -1 = left (for Wind Tunnel Bridge)
-        windInterval: null,      // store interval so it can be cleared
-        // ── Avalanche state ──
+        finishedOrder: [],
+        chatMessages: [],
+        selectedMap: null,
+        windDirection: 1,
+        windInterval: null,
         avalancheActive: false,
-        avalancheZ: 60,          // current world Z of wave front
+        avalancheZ: 60,
         avalancheSpeed: 8,
         avalancheInterval: null,
+        lobbyInterval: null,    // 15s countdown interval
     };
 }
 
@@ -455,36 +456,59 @@ export function registerGameSocket(io) {
             const player = room.players[socket.id];
             if (!player) return;
 
-            // Toggle ready
+            // Toggle ready state
             player.ready = !player.ready;
-
-            // Broadcast updated player list so UI shows ready status
             io.to(roomId).emit("playersUpdated", { players: getPlayerList(room) });
 
-            // Check if all players (min 2) are ready
+            // Check if ALL players (min 1) are ready
             const allPlayers = Object.values(room.players);
-            const allReady = allPlayers.length >= 2 && allPlayers.every((p) => p.ready);
+            const allReady = allPlayers.length >= 1 && allPlayers.every((p) => p.ready);
 
             if (allReady && room.gameState === "waiting") {
-                room.gameState = "countdown";
+                room.gameState = "lobby";  // 3D lobby phase
 
-                console.log(`[Room ${roomId}] All ready – countdown starting`);
-                io.to(roomId).emit("countdownStarted", { seconds: COUNTDOWN_SECONDS });
+                // Pick map NOW so we can show it during countdown
+                const MAPS = ["frozenfrenzy", "lavahell", "honeycomb", "neonparadox", "cryovoid"];
+                room.selectedMap = MAPS[Math.floor(Math.random() * MAPS.length)];
 
-                // After countdown – start the game
-                setTimeout(() => {
-                    room.gameState = "playing";
-                    room.startTime = Date.now();
+                console.log(`[Room ${roomId}] All ready – entering 3D lobby. Map pre-selected: ${room.selectedMap}`);
 
-                    io.to(roomId).emit("gameStarted", {
-                        startTime: room.startTime,
-                        players: getPlayerList(room),
-                    });
-                    console.log(`[Room ${roomId}] Game started!`);
+                // Tell all clients: go to the 3D lobby page immediately
+                io.to(roomId).emit("allReadyMoveToLobby", { map: room.selectedMap });
 
-                    // Start synced wind direction for Wind Tunnel Bridge
-                    startWindBroadcast(io, roomId, room);
-                }, COUNTDOWN_SECONDS * 1000);
+                // Start 15-second server-side countdown
+                let timeLeft = LOBBY_COUNTDOWN_SECONDS;
+
+                // Clear any stale interval
+                if (room.lobbyInterval) clearInterval(room.lobbyInterval);
+
+                // Emit first tick immediately
+                io.to(roomId).emit("lobbyCountdown", { timeLeft });
+
+                room.lobbyInterval = setInterval(() => {
+                    timeLeft -= 1;
+                    io.to(roomId).emit("lobbyCountdown", { timeLeft });
+
+                    if (timeLeft <= 0) {
+                        clearInterval(room.lobbyInterval);
+                        room.lobbyInterval = null;
+
+                        // Start the game
+                        room.gameState = "playing";
+                        room.startTime = Date.now();
+
+                        console.log(`[Room ${roomId}] Lobby countdown done – starting map: ${room.selectedMap}`);
+
+                        io.to(roomId).emit("startGame", {
+                            map: room.selectedMap,
+                            startTime: room.startTime,
+                            players: getPlayerList(room),
+                        });
+
+                        // Start wind for FrozenFrenzy / Wind Tunnel
+                        startWindBroadcast(io, roomId, room);
+                    }
+                }, 1000);
             }
         });
 
@@ -753,20 +777,19 @@ export function registerGameSocket(io) {
             // Remove player from room
             delete room.players[socket.id];
 
-            // If game is in countdown and falls below 2, cancel countdown
-            if (room.gameState === "countdown" && playerCount(room) < 2) {
+            // If game is in lobby/countdown phase and a player leaves, reset
+            if ((room.gameState === "lobby" || room.gameState === "countdown") && playerCount(room) < 1) {
                 room.gameState = "waiting";
-                // Reset ready state for remaining players
+                if (room.lobbyInterval) { clearInterval(room.lobbyInterval); room.lobbyInterval = null; }
                 Object.values(room.players).forEach((p) => (p.ready = false));
-                io.to(roomId).emit("countdownCancelled", {
-                    reason: "Not enough players",
-                });
+                io.to(roomId).emit("countdownCancelled", { reason: "Not enough players" });
             }
 
             // Clean up empty rooms to save memory
             if (playerCount(room) === 0) {
                 if (room.windInterval) clearInterval(room.windInterval);
                 if (room.avalancheInterval) clearInterval(room.avalancheInterval);
+                if (room.lobbyInterval) clearInterval(room.lobbyInterval);
                 delete rooms[roomId];
                 console.log(`[Room ${roomId}] Deleted (empty)`);
             }

@@ -62,8 +62,9 @@ const Player = React.forwardRef(({
     const keys = useKeyboard();
     const { camera } = useThree();
 
-    // ---- Load Human Model ----
-    const { scene } = useGLTF('/models/red-panda/scene.gltf');
+    // ---- Load chosen avatar from Zustand store ----
+    const avatarPath = useStore((s) => s.avatar);
+    const { scene } = useGLTF(avatarPath);
 
     // Optimize model for FPS
     useEffect(() => {

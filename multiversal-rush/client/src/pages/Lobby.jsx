@@ -33,6 +33,8 @@ export default function Lobby() {
     const setStartTime = useStore((s) => s.setStartTime);
     const setChatMessages = useStore((s) => s.setChatMessages);
     const addChatMessage = useStore((s) => s.addChatMessage);
+    const avatar = useStore((s) => s.avatar);
+    const setAvatar = useStore((s) => s.setAvatar);
 
     const players = useStore((s) => s.players);
     const chatMessages = useStore((s) => s.chatMessages);
@@ -176,14 +178,15 @@ export default function Lobby() {
         socket.on("countdownCancelled", ({ reason }) => {
             setGameState("waiting");
             setCountdown(null);
+            setIsReady(false);
             setError(`Countdown cancelled: ${reason}`);
         });
 
-        // Game started → navigate to Game page
-        socket.on("gameStarted", ({ startTime, players }) => {
-            setGameState("playing");
-            setStartTime(startTime);
-            setPlayers(players);
+        // ── All players ready → server moves everyone to 3D lobby ──
+        // Navigate to /game immediately; Game.jsx/HubWorld handles the 15s countdown
+        socket.on("allReadyMoveToLobby", () => {
+            console.log('[Lobby] allReadyMoveToLobby received — navigating to /game');
+            setGameState("lobby");
             navigate("/game");
         });
 
@@ -197,9 +200,8 @@ export default function Lobby() {
             socket.off("playerJoined");
             socket.off("playersUpdated");
             socket.off("playerLeft");
-            socket.off("countdownStarted");
             socket.off("countdownCancelled");
-            socket.off("gameStarted");
+            socket.off("allReadyMoveToLobby");
             socket.off("chatUpdate");
         };
     }, []);
@@ -402,6 +404,35 @@ export default function Lobby() {
                     >
                         Logout
                     </button>
+                </div>
+
+                {/* ---- Avatar Picker ---- */}
+                <div style={{
+                    background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(0,255,200,0.2)',
+                    borderRadius: 12, padding: '16px 20px', marginBottom: '1.2rem',
+                }}>
+                    <p style={{ color: '#00ffe0', fontWeight: 700, marginBottom: 12, fontSize: '0.95rem' }}>
+                        🎭 Choose your avatar
+                    </p>
+                    <div style={{ display: 'flex', gap: 16 }}>
+                        {[
+                            { label: '🐧 Penguin', path: '/models/penguin/scene.gltf' },
+                            { label: '🐼 Red Panda', path: '/models/red-panda/scene.gltf' },
+                        ].map(({ label, path }) => (
+                            <button
+                                key={path}
+                                onClick={() => setAvatar(path)}
+                                style={{
+                                    flex: 1, padding: '12px 8px', borderRadius: 10, cursor: 'pointer',
+                                    fontSize: '1rem', fontWeight: 700, transition: 'all 0.2s',
+                                    background: avatar === path ? 'rgba(0,255,200,0.2)' : 'rgba(255,255,255,0.05)',
+                                    border: avatar === path ? '2px solid #00ffe0' : '1px solid rgba(255,255,255,0.15)',
+                                    color: avatar === path ? '#00ffe0' : '#aaa',
+                                    boxShadow: avatar === path ? '0 0 18px rgba(0,255,200,0.3)' : 'none',
+                                }}
+                            >{label}</button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* ---- Join Panel ---- */}
