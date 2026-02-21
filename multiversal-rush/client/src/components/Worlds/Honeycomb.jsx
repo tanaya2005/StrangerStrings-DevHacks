@@ -1,15 +1,16 @@
 // ============================================================
 //  components/Worlds/Honeycomb.jsx
+//  components/Worlds/Honeycomb.jsx — Honeycomb Fall World
+//  Atharva (Task 1/3): hex grid that drops tiles on contact
 // ============================================================
 import React, { useState, useEffect } from 'react';
 import Player from '../Player/Player';
 
-// Step 1: HexTile Component
 function HexTile({ position, status }) {
     if (status === 'dropped') return null;
 
-    let color = '#00ffff'; // cyan
-    if (status === 'touched') color = '#ff4500'; // red/orange
+    let color = '#00ffff'; // cyan idle
+    if (status === 'touched') color = '#ff4500'; // orange-red warning
 
     return (
         <mesh position={position} rotation={[0, Math.PI / 6, 0]}>
@@ -19,7 +20,6 @@ function HexTile({ position, status }) {
     );
 }
 
-// Step 2, 3 & 4: Honeycomb Component
 export default function Honeycomb({ emitMove, emitWorldTransition, emitFell }) {
     const [tiles, setTiles] = useState([]);
 
@@ -52,7 +52,7 @@ export default function Honeycomb({ emitMove, emitWorldTransition, emitFell }) {
 
                     generatedTiles.push({
                         id: `hex-${levelIdx}-${r}-${c}`,
-                        x: x - (cols * xOffset) / 2, // Centering logic
+                        x: x - (cols * xOffset) / 2,
                         y: yLevel,
                         z: z - (rows * zOffset) / 2,
                         status: 'idle'
@@ -70,24 +70,12 @@ export default function Honeycomb({ emitMove, emitWorldTransition, emitFell }) {
             const newTiles = [...prev];
             const tileIndex = newTiles.findIndex(t => t.id === id);
 
-            // If already touched/dropped, do nothing
             if (tileIndex === -1 || newTiles[tileIndex].status !== 'idle') {
                 return prev;
             }
 
-            // Update to touched so we can show the warning color visually
             newTiles[tileIndex] = { ...newTiles[tileIndex], status: 'touched' };
 
-            /**
-             * State-driven timeout logic:
-             * Once a tile is stepped on ('touched'), it triggers a timer.
-             * After exactly 800ms, the state is updated to 'dropped'.
-             * Because React re-renders based on state, the HexTile component will receive 
-             * the 'dropped' status and unmount (return null).
-             * Additionally, the Player's AABB collision logic only checks for 'idle' 
-             * or 'touched' tiles, meaning 'dropped' tiles will no longer be solid.
-             * Using central state management allows easy broadcasting of events for multiplayer sync.
-             */
             setTimeout(() => {
                 setTiles((currTiles) => {
                     const current = [...currTiles];
@@ -113,21 +101,20 @@ export default function Honeycomb({ emitMove, emitWorldTransition, emitFell }) {
                 <HexTile key={t.id} position={[t.x, t.y, t.z]} status={t.status} />
             ))}
 
-            {/* Player Component with reference to tiles and touch callback */}
             <Player
                 emitMove={emitMove}
                 emitFell={emitFell}
                 emitWorldTransition={emitWorldTransition}
                 world={3}
-                startPosition={[0, 5, 0]}
+                startPosition={[0, 12, 0]}
                 tiles={tiles}
                 onTileTouch={handleTileTouch}
             />
 
-            {/* Step 4: Lethal Lava Hell Floor */}
+            {/* Lava floor */}
             <mesh position={[0, -20, 0]} rotation={[-Math.PI / 2, 0, 0]}>
                 <planeGeometry args={[500, 500]} />
-                <meshStandardMaterial color="red" emissive="orange" />
+                <meshStandardMaterial color="red" emissive="orange" emissiveIntensity={0.6} />
             </mesh>
         </>
     );

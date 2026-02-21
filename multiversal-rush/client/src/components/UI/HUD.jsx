@@ -4,10 +4,12 @@
 //  Member 4 polishes: voice/mute, chat icon
 // ============================================================
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import useStore from "../../store/store";
 import socket from "../../socket/socket";
 
 export default function HUD({ emitMethods }) {
+    const navigate = useNavigate();
     const players = useStore((s) => s.players);
     const currentWorld = useStore((s) => s.currentWorld);
     const gameState = useStore((s) => s.gameState);
@@ -32,12 +34,24 @@ export default function HUD({ emitMethods }) {
         return `${s}.${m}s`;
     };
 
+    const handleExit = () => {
+        if (window.confirm("Are you sure you want to exit the game?")) {
+            socket.disconnect();
+            navigate("/lobby");
+        }
+    };
+
     const playerList = Object.values(players);
     const activePlayers = playerList.filter((p) => !p.eliminated);
     const myPlace = myFinishResult?.position;
 
     return (
         <div style={styles.hud}>
+            {/* ---- Exit Button ---- */}
+            <button onClick={handleExit} style={styles.exitButton}>
+                ✕ Exit
+            </button>
+
             {/* ---- World indicator ---- */}
             <div style={styles.worldBadge}>
                 {currentWorld === 1 ? "🌐 Cyberverse" : "🌋 Lava Hell"}
@@ -94,6 +108,22 @@ const styles = {
         fontFamily: "'Exo 2', sans-serif",
         color: "#fff",
     },
+    exitButton: {
+        position: "absolute",
+        top: 16, left: 20,
+        background: "rgba(255,77,109,0.3)",
+        border: "1px solid rgba(255,77,109,0.6)",
+        backdropFilter: "blur(8px)",
+        padding: "8px 16px",
+        borderRadius: 8,
+        fontSize: "0.9rem",
+        fontWeight: 600,
+        color: "#ff4d6d",
+        cursor: "pointer",
+        pointerEvents: "auto",
+        transition: "all 0.2s",
+        zIndex: 100,
+    },
     worldBadge: {
         position: "absolute",
         top: 16, left: "50%",
@@ -122,7 +152,7 @@ const styles = {
     },
     playerCount: {
         position: "absolute",
-        top: 16, left: 20,
+        top: 70, left: 20,
         background: "rgba(0,0,0,0.55)",
         border: "1px solid rgba(0,255,200,0.2)",
         backdropFilter: "blur(8px)",

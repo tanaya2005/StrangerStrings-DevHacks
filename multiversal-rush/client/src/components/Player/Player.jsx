@@ -1,7 +1,8 @@
 // ============================================================
 //  components/Player/Player.jsx
-//  Base: Tanaya (Task 1) — WASD + jump + gravity + camera follow
-//  Integration: Varun (Task 2) — emitMove / emitFell / emitWorldTransition
+//  Tanaya: WASD + jump + gravity + camera follow
+//  Atharva: AABB platform collision, honeycomb tiles, portal detection
+//  Varun: emitMove / emitFell multiplayer hooks
 // ============================================================
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -13,10 +14,9 @@ const MOVE_SPEED = 10;
 const CROUCH_SPEED = 5;
 const JUMP_POWER = 15;
 const GRAVITY = -30;
-const BASE_Y = 1;   // ground level y
-const FALL_LIMIT = -25; // fall off world below this y (increased for Lava check)
+const BASE_Y = 1;
+const FALL_LIMIT = -25; // increased for honeycomb lava check
 
-// ---- Keyboard hook (Tanaya's — no re-renders) ----
 function useKeyboard() {
     const keyMap = useRef({
         w: false, a: false, s: false, d: false,
@@ -45,14 +45,6 @@ function useKeyboard() {
     return keyMap;
 }
 
-/**
- * Props (provided by World1 / World2 via Game.jsx):
- *   emitMove({ position, rotation, world }) — broadcast position every frame
- *   emitFell()                              — called when player falls off
- *   emitWorldTransition(newWorld)           — called on portal trigger
- *   world {number}                          — current world (1 or 2)
- *   startPosition {[x,y,z]}                — spawn point
- */
 export default function Player({
     emitMove,
     emitFell,
@@ -68,16 +60,12 @@ export default function Player({
     const keys = useKeyboard();
     const { camera } = useThree();
 
-    // Physics refs (Tanaya)
     const velocityY = useRef(0);
     const isGrounded = useRef(true);
 
-    // Reusable vectors — avoid GC pressure during game loop
     const direction = useRef(new THREE.Vector3());
     const targetCameraPos = useRef(new THREE.Vector3());
     const cameraOffset = useRef(new THREE.Vector3(0, 4, 8));
-
-    // Multiplayer emit throttle (Varun)
     const lastEmitRef = useRef(0);
 
     useFrame((_, delta) => {
@@ -97,7 +85,6 @@ export default function Player({
         const currentSpeed = isCrouching ? CROUCH_SPEED : MOVE_SPEED;
         const targetScaleY = isCrouching ? 0.5 : 1.0;
         playerRef.current.scale.y = THREE.MathUtils.lerp(playerRef.current.scale.y, targetScaleY, 15 * delta);
-
         pos.addScaledVector(direction.current, currentSpeed * delta);
 
         // ---- 3. Jump & gravity ----
@@ -109,30 +96,34 @@ export default function Player({
         velocityY.current += GRAVITY * delta;
         const nextY = pos.y + velocityY.current * delta;
 
-        // ---- 4. Platform Collision (AABB) ----
+        // ---- 4. Platform collision (AABB) ----
         let hitPlatform = false;
         let snapY = null;
 
         const playerSize = { x: 1, y: 1 * targetScaleY, z: 1 };
-        const playerMin = { x: pos.x - playerSize.x / 2, y: nextY - playerSize.y / 2, z: pos.z - playerSize.z / 2 };
-        const playerMax = { x: pos.x + playerSize.x / 2, y: nextY + playerSize.y / 2, z: pos.z + playerSize.z / 2 };
+        const playerMin = { x: pos.x - 0.5, y: nextY - playerSize.y / 2, z: pos.z - 0.5 };
+        const playerMax = { x: pos.x + 0.5, y: nextY + playerSize.y / 2, z: pos.z + 0.5 };
 
         const platforms = useStore.getState().platforms;
 
         for (const pid in platforms) {
             const plat = platforms[pid];
-            const pMin = { x: plat.position.x - plat.size[0] / 2, y: plat.position.y - plat.size[1] / 2, z: plat.position.z - plat.size[2] / 2 };
-            const pMax = { x: plat.position.x + plat.size[0] / 2, y: plat.position.y + plat.size[1] / 2, z: plat.position.z + plat.size[2] / 2 };
+            const pMin = {
+                x: plat.position.x - plat.size[0] / 2,
+                y: plat.position.y - plat.size[1] / 2,
+                z: plat.position.z - plat.size[2] / 2
+            };
+            const pMax = {
+                x: plat.position.x + plat.size[0] / 2,
+                y: plat.position.y + plat.size[1] / 2,
+                z: plat.position.z + plat.size[2] / 2
+            };
 
             if (checkAABB(playerMin, playerMax, pMin, pMax)) {
-                // We have an intersection, check Y resolution
                 const resolveY = resolveCollisionY(playerMin, playerMax, pMin, pMax, velocityY.current);
                 if (resolveY !== null) {
                     hitPlatform = true;
-                    // Snap the player center upwards
                     snapY = resolveY + playerSize.y / 2;
-
-                    // Moving platforms pull player along
                     if (plat.type === 'moving' && plat.velocity) {
                         pos.x += plat.velocity.x * delta;
                         pos.y += plat.velocity.y * delta;
@@ -143,10 +134,10 @@ export default function Player({
             }
         }
 
-        // ---- 4.1 Honeycomb Tile Collision ----
+        // ---- 4.1 Honeycomb tile collision ----
         if (!hitPlatform && tiles && tiles.length > 0) {
-            const hexWidth = 1.732; // sqrt(3)
-            const hexDepth = 2; // Flat top to bottom is ~2
+            const hexWidth = 1.732;
+            const hexDepth = 2;
             const hexHeight = 0.5;
 
             for (let i = 0; i < tiles.length; i++) {
@@ -160,9 +151,7 @@ export default function Player({
                         if (resolveY !== null) {
                             hitPlatform = true;
                             snapY = resolveY + playerSize.y / 2;
-                            if (t.status === 'idle' && onTileTouch) {
-                                onTileTouch(t.id);
-                            }
+                            if (t.status === 'idle' && onTileTouch) onTileTouch(t.id);
                             break;
                         }
                     }
@@ -179,39 +168,34 @@ export default function Player({
             isGrounded.current = false;
         }
 
-        // ---- 4.2 Portal Collision ----
+        // ---- 4.2 Portal collision ----
         if (portals && portals.length > 0) {
             for (let i = 0; i < portals.length; i++) {
-                const pMin = portals[i].min;
-                const pMax = portals[i].max;
-                if (checkAABB(playerMin, playerMax, pMin, pMax)) {
-                    if (onPortalTouch) {
-                        onPortalTouch(portals[i].id);
-                    }
+                if (checkAABB(playerMin, playerMax, portals[i].min, portals[i].max)) {
+                    if (onPortalTouch) onPortalTouch(portals[i].id);
                 }
             }
         }
 
-        // ---- Fall detection & Lava (Varun & Honeycomb) ----
+        // ---- Fall detection ----
         if (pos.y < -19.5 && tiles && tiles.length > 0) {
-            // Lava specific condition
+            // Honeycomb lava reset
             pos.set(...startPosition);
             velocityY.current = 0;
             isGrounded.current = true;
         } else if (pos.y < FALL_LIMIT) {
-            // Standard fall reset
             pos.set(...startPosition);
             velocityY.current = 0;
             isGrounded.current = true;
             emitFell?.();
         }
 
-        // ---- 4. Camera follow (Tanaya) ----
+        // ---- Camera follow ----
         targetCameraPos.current.copy(pos).add(cameraOffset.current);
         camera.position.lerp(targetCameraPos.current, 5.0 * delta);
         camera.lookAt(pos);
 
-        // ---- 5. Emit position to multiplayer (Varun, throttled 50ms) ----
+        // ---- Emit to multiplayer (throttled 50ms) ----
         const now = Date.now();
         if (now - lastEmitRef.current > 50) {
             lastEmitRef.current = now;

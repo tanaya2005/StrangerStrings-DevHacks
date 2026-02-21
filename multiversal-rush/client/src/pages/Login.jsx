@@ -18,7 +18,8 @@ import { useNavigate } from "react-router-dom";
 import useStore from "../store/store";
 import "./Login.css";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
+// Use relative URLs — handled by Vite proxy → http://localhost:5000
+const API = "/api";
 
 // ---- Age helper ----
 function calculateAge(dobString) {
@@ -100,7 +101,7 @@ export default function Login() {
 
         setLoading(true);
         try {
-            const res = await fetch(`${SERVER_URL}/api/auth/signup`, {
+            const res = await fetch(`${API}/auth/signup`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -116,11 +117,12 @@ export default function Login() {
                 setError(data.error || "Signup failed. Try again.");
             } else {
                 handleAuthSuccess(data);
-                setSuccess("Account created! Entering the multiverse… 🚀");
-                setTimeout(() => navigate("/lobby"), 800);
+                // Navigate immediately — token is in localStorage now
+                navigate("/lobby", { replace: true });
             }
-        } catch {
+        } catch (err) {
             setError("Cannot reach server. Is the backend running?");
+            console.error("[signup]:", err);
         } finally {
             setLoading(false);
         }
@@ -139,7 +141,7 @@ export default function Login() {
 
         setLoading(true);
         try {
-            const res = await fetch(`${SERVER_URL}/api/auth/login`, {
+            const res = await fetch(`${API}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: email.trim(), password }),
@@ -150,11 +152,12 @@ export default function Login() {
                 setError(data.error || "Login failed. Check your credentials.");
             } else {
                 handleAuthSuccess(data);
-                setSuccess("Welcome back! Entering the multiverse… 🚀");
-                setTimeout(() => navigate("/lobby"), 800);
+                // Navigate immediately — token is in localStorage now
+                navigate("/lobby", { replace: true });
             }
-        } catch {
+        } catch (err) {
             setError("Cannot reach server. Is the backend running?");
+            console.error("[login]:", err);
         } finally {
             setLoading(false);
         }

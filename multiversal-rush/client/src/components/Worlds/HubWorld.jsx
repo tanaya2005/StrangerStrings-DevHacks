@@ -1,5 +1,6 @@
 // ============================================================
-//  components/Worlds/HubWorld.jsx
+//  components/Worlds/HubWorld.jsx — Central Hub
+//  Atharva: spawn platform + portals to Cyberverse & Honeycomb
 // ============================================================
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -10,16 +11,11 @@ export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
     const cyberPortalRef = useRef(null);
     const honeyPortalRef = useRef(null);
 
-    // Slowly rotate portals for visual effect
     useFrame((_, delta) => {
         if (cyberPortalRef.current) cyberPortalRef.current.rotation.y += delta;
         if (honeyPortalRef.current) honeyPortalRef.current.rotation.y += delta;
     });
 
-    /**
-     * Bounding box data for portals based on their position and toros dimensions.
-     * We pass these down to the Player component to trigger collision logic.
-     */
     const portals = [
         {
             id: 'cyberverse',

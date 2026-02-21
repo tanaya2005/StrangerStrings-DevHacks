@@ -1,12 +1,7 @@
 // ============================================================
-//  pages/Game.jsx — 3D Game page shell
-//  Member 2 (Multiplayer) provides:
-//   • Socket listener hooks for other players' positions
-//   • Remote player meshes rendered in the scene
-//   • Position emitter (called by Member 1's movement code)
-//   • World gating (hide players from other worlds)
-//
-//  Member 1 slots their <World1 />, <World2 />, <Player /> here.
+//  pages/Game.jsx — 3D game shell
+//  Varun: socket, emits, remote players, HUD
+//  Atharva: HubWorld + Honeycomb worlds added, currentLevel state
 // ============================================================
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from "react";
 import { Canvas } from "@react-three/fiber";
@@ -24,64 +19,45 @@ export default function Game() {
     const navigate = useNavigate();
     const [currentLevel, setCurrentLevel] = useState('hub');
 
-    const currentWorld = useStore((s) => s.currentWorld);
     const setCurrentWorld = useStore((s) => s.setCurrentWorld);
-    const gameState = useStore((s) => s.gameState);
     const setGameState = useStore((s) => s.setGameState);
     const updatePlayer = useStore((s) => s.updatePlayer);
-    const removePlayer = useStore((s) => s.removePlayer);
     const setFinishedOrder = useStore((s) => s.setFinishedOrder);
     const setMyFinishResult = useStore((s) => s.setMyFinishResult);
     const setStartTime = useStore((s) => s.setStartTime);
     const setPlayers = useStore((s) => s.setPlayers);
 
-    // Track when we last emitted a move (client-side throttle)
     const lastEmitTime = useRef(0);
 
     // ---- Socket listeners ----
     useEffect(() => {
-        // Another player moved
-        socket.on("playerMoved", ({ playerId, position, rotation, world }) => {
-            updatePlayer(playerId, { position, rotation, world });
-        });
+        socket.on("playerMoved", ({ playerId, position, rotation, world }) =>
+            updatePlayer(playerId, { position, rotation, world }));
 
-        // Another player changed world
-        socket.on("playerWorldChanged", ({ playerId, newWorld }) => {
-            updatePlayer(playerId, { world: newWorld });
-        });
+        socket.on("playerWorldChanged", ({ playerId, newWorld }) =>
+            updatePlayer(playerId, { world: newWorld }));
 
-        // Another player finished
         socket.on("playerFinishedRace", ({ playerId, finishTime, finishedOrder }) => {
             updatePlayer(playerId, { finished: true, finishTime });
             setFinishedOrder(finishedOrder);
         });
 
-        // Our own finish result
-        socket.on("yourFinishResult", ({ position, finishTime }) => {
-            setMyFinishResult({ position, finishTime });
-        });
+        socket.on("yourFinishResult", ({ position, finishTime }) =>
+            setMyFinishResult({ position, finishTime }));
 
-        // A player was eliminated
-        socket.on("playerEliminated", ({ eliminatedId }) => {
-            updatePlayer(eliminatedId, { eliminated: true });
-        });
+        socket.on("playerEliminated", ({ eliminatedId }) =>
+            updatePlayer(eliminatedId, { eliminated: true }));
 
-        // Game finished → navigate to leaderboard after brief delay
         socket.on("gameFinished", ({ finishedOrder }) => {
             setGameState("finished");
             setFinishedOrder(finishedOrder);
             setTimeout(() => navigate("/leaderboard"), 3000);
         });
 
-        // Someone disconnected mid-game
-        socket.on("playerLeft", ({ players }) => {
-            if (players) setPlayers(players);
-        });
+        socket.on("playerLeft", ({ players }) => { if (players) setPlayers(players); });
 
-        // Another player respawned (fell)
-        socket.on("playerRespawned", ({ playerId }) => {
-            updatePlayer(playerId, { position: { x: 0, y: 1, z: 0 } });
-        });
+        socket.on("playerRespawned", ({ playerId }) =>
+            updatePlayer(playerId, { position: { x: 0, y: 1, z: 0 } }));
 
         return () => {
             socket.off("playerMoved");
@@ -95,59 +71,31 @@ export default function Game() {
         };
     }, []);
 
-    // ---- PUBLIC API for Member 1 ----
-    /**
-     * emitMove({ position, rotation, world })
-     * Call this from Player.jsx every frame AFTER updating position.
-     * Throttled to 50ms (≈ 20 updates/sec) to save bandwidth.
-     */
     const emitMove = useCallback(({ position, rotation, world }) => {
         const now = Date.now();
-        if (now - lastEmitTime.current < 50) return; // throttle
+        if (now - lastEmitTime.current < 50) return;
         lastEmitTime.current = now;
         socket.emit("move", { position, rotation, world });
     }, []);
 
-    /**
-     * emitWorldTransition(newWorld)
-     * Call this when the player crosses the portal.
-     */
     const emitWorldTransition = useCallback((newWorld) => {
         setCurrentWorld(newWorld);
         socket.emit("worldTransition", { newWorld });
     }, []);
 
-    /**
-     * emitFinished()
-     * Call this when the player crosses the final finish portal.
-     */
-    const emitFinished = useCallback(() => {
-        socket.emit("playerFinished");
-    }, []);
+    const emitFinished = useCallback(() => socket.emit("playerFinished"), []);
+    const emitFell = useCallback(() => socket.emit("playerFell"), []);
 
-    /**
-     * emitFell()
-     * Call this when the player falls off and needs to respawn.
-     */
-    const emitFell = useCallback(() => {
-        socket.emit("playerFell");
+    // Handle portal entry from HubWorld
+    const handleEnterPortal = useCallback((portalId) => {
+        setCurrentLevel(portalId); // 'cyberverse' | 'honeycomb'
     }, []);
 
     return (
         <div style={{ width: "100vw", height: "100vh", position: "relative", background: "#000" }}>
-            {/* HUD overlay */}
             <HUD emitMethods={{ emitMove, emitWorldTransition, emitFinished, emitFell }} />
 
-            {/* 3D Canvas */}
-            <Canvas
-                camera={{ position: [0, 5, 10], fov: 70 }}
-                style={{ position: "absolute", inset: 0 }}
-            >
-                {/* Ambient + directional light */}
-                <ambientLight intensity={0.4} />
-                <directionalLight position={[10, 20, 10]} intensity={1} />
-
-                {/* Remote players (Member 2) */}
+            <Canvas camera={{ position: [0, 5, 10], fov: 70 }} style={{ position: "absolute", inset: 0 }}>
                 <RemotePlayers />
 
                 {/* Hub World */}
@@ -170,6 +118,15 @@ export default function Game() {
 
                 {/* World 3 - Honeycomb */}
                 {currentLevel === 'honeycomb' && (
+                    <Honeycomb
+                        emitMove={emitMove}
+                        emitWorldTransition={emitWorldTransition}
+                        emitFell={emitFell}
+                    />
+                )}
+
+                {/* World 3 — Honeycomb Fall */}
+                {currentLevel === "honeycomb" && (
                     <Honeycomb
                         emitMove={emitMove}
                         emitWorldTransition={emitWorldTransition}

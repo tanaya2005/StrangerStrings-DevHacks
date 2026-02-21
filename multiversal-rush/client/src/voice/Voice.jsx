@@ -1,229 +1,162 @@
 // ============================================================
-//  voice/Voice.jsx — WebRTC voice chat (PeerJS)
-//  Source: archit2 (Task 4) — restyled for cyberpunk UI
-//  Auto-connects players in the same room. Max 5 users.
+//  voice/Voice.jsx — WebRTC voice chat via LiveKit SFU
+//  Source: archit2 (Task 4) — replaced PeerJS with LiveKit
+//  Default: MUTED + DEAFENED — player must manually enable
+//  Controls: Mic (unmute) + Deafen toggles
 // ============================================================
 import React, { useEffect, useRef, useState } from 'react';
-import socket from '../socket/socket';
-
-// PeerJS is loaded from CDN in index.html to avoid bundling issues
-// Make sure: <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-// is in public/index.html — we reference window.Peer below
+import { Room, RoomEvent } from 'livekit-client';
 
 export default function Voice({ name, room }) {
+    // ---- Default: muted AND deafened ----
+    const [muted, setMuted] = useState(true);   // mic off by default
+    const [deafened, setDeafened] = useState(true);   // ears off by default
     const [connectedCount, setConnectedCount] = useState(0);
-    const [muted, setMuted] = useState(false);
-    const [deafened, setDeafened] = useState(false);
+    const [connecting, setConnecting] = useState(false);
     const [error, setError] = useState('');
 
-    const localStreamRef = useRef(null);
-    const peerRef = useRef(null);
-    const remoteAudioRefs = useRef(new Map());
+    const roomRef = useRef(null);
+    const deafenedRef = useRef(true); // ref stays in sync for async callbacks
+
+    useEffect(() => { deafenedRef.current = deafened; }, [deafened]);
 
     useEffect(() => {
-        let mounted = true;
+        if (!name || !room) return;
+        let isMounted = true;
+        let lkRoom = null;
 
-        async function start() {
+        async function connect() {
             try {
-                // Check PeerJS is available (loaded from CDN)
-                if (typeof window.Peer === 'undefined') {
-                    console.warn('[Voice] PeerJS not loaded — voice chat unavailable');
-                    setError('Voice unavailable (PeerJS not loaded)');
-                    return;
-                }
-
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                localStreamRef.current = stream;
-
-                const PEER_HOST = window.__PEER_HOST || window.location.hostname;
-                const PEER_PORT = window.__PEER_PORT || 5000;  // same port as our Express server
-                const peer = new window.Peer(undefined, {
-                    host: PEER_HOST,
-                    port: PEER_PORT,
-                    path: '/peerjs',
+                setConnecting(true);
+                const res = await fetch('/api/voice/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerName: name, roomId: room }),
                 });
-                peerRef.current = peer;
+                if (!res.ok) throw new Error(`Token error ${res.status}`);
+                const { token, url } = await res.json();
+                if (!isMounted) return;
 
-                peer.on('open', (id) => {
-                    socket.emit('peer-join', { peerId: id, name, room });
-                });
+                lkRoom = new Room();
+                await lkRoom.connect(url, token);
 
-                peer.on('call', (call) => {
-                    call.answer(localStreamRef.current);
-                    call.on('stream', (remoteStream) => {
-                        if (mounted) attachRemoteStream(call.peer, remoteStream);
-                    });
-                });
+                // Start with mic DISABLED (user is muted by default)
+                await lkRoom.localParticipant.setMicrophoneEnabled(false);
 
-                peer.on('error', (err) => {
-                    console.warn('[Voice] PeerJS error:', err.type);
-                    setError(`Voice error: ${err.type}`);
-                });
+                if (!isMounted) { lkRoom.disconnect(); return; }
+                roomRef.current = lkRoom;
 
-                socket.on('peers', (list) => {
-                    if (!mounted) return;
-                    connectToPeers(list);
+                lkRoom.on(RoomEvent.ParticipantConnected, () => updateCount(lkRoom));
+                lkRoom.on(RoomEvent.ParticipantDisconnected, () => updateCount(lkRoom));
+                lkRoom.on(RoomEvent.Disconnected, () => { if (isMounted) setConnectedCount(0); });
+                lkRoom.on(RoomEvent.TrackSubscribed, (track, pub) => {
+                    if (track.kind === 'audio') {
+                        track.attach().style.display = 'none';
+                        // If currently deafened, mute new track immediately
+                        if (deafenedRef.current && typeof pub.setEnabled === 'function') {
+                            pub.setEnabled(false);
+                        }
+                    }
                 });
+                lkRoom.on(RoomEvent.TrackUnsubscribed, (track) => track.detach());
+
+                setError('');
+                setConnecting(false);
+                updateCount(lkRoom);
             } catch (err) {
-                if (err.name === 'NotAllowedError') {
-                    setError('Microphone access denied');
-                } else {
-                    console.warn('[Voice] error:', err.message);
+                if (isMounted) {
+                    setError(`Voice: ${err.message}`);
+                    setConnecting(false);
                 }
             }
         }
 
-        start();
-
+        connect();
         return () => {
-            mounted = false;
-            const peer = peerRef.current;
-            if (peer && !peer.destroyed) peer.destroy();
-            const stream = localStreamRef.current;
-            if (stream) stream.getTracks().forEach((t) => t.stop());
-            remoteAudioRefs.current.forEach((el) => {
-                el.pause();
-                el.srcObject = null;
-                el.remove();
-            });
-            remoteAudioRefs.current.clear();
-            socket.off('peers');
+            isMounted = false;
+            try { lkRoom?.disconnect(); } catch (_) { }
         };
     }, [name, room]);
 
-    function attachRemoteStream(peerId, stream) {
-        let audio = remoteAudioRefs.current.get(peerId);
-        if (!audio) {
-            audio = document.createElement('audio');
-            audio.autoplay = true;
-            audio.playsInline = true;
-            audio.style.display = 'none';
-            document.body.appendChild(audio);
-            remoteAudioRefs.current.set(peerId, audio);
-        }
-        audio.srcObject = stream;
-        audio.muted = deafened;
-        setConnectedCount(remoteAudioRefs.current.size);
+    function updateCount(lkRoom) {
+        try { setConnectedCount((lkRoom.remoteParticipants?.size ?? 0) + 1); } catch (_) { }
     }
 
-    function connectToPeers(list) {
-        const peer = peerRef.current;
-        if (!peer || !localStreamRef.current) return;
-
-        const participants = list.filter((p) => p.peerId);
-        if (participants.length > 5) return;
-
-        participants.forEach((p) => {
-            if (p.peerId === peer.id) return;
-            if (remoteAudioRefs.current.has(p.peerId)) return;
-            try {
-                const call = peer.call(p.peerId, localStreamRef.current);
-                call.on('stream', (remoteStream) => {
-                    attachRemoteStream(call.peer, remoteStream);
-                });
-            } catch (e) {
-                console.warn('[Voice] call failed:', e);
-            }
-        });
-    }
-
-    function toggleMute() {
-        const stream = localStreamRef.current;
-        if (!stream) return;
-        const track = stream.getAudioTracks()[0];
-        if (!track) return;
-        track.enabled = !track.enabled;
-        setMuted(!track.enabled);
+    async function toggleMute() {
+        try {
+            const lk = roomRef.current;
+            if (!lk) return;
+            const next = !muted;
+            await lk.localParticipant.setMicrophoneEnabled(!next); // enabled = NOT muted
+            setMuted(next);
+        } catch (err) { console.warn('[Voice] mute:', err.message); }
     }
 
     function toggleDeafen() {
-        const newDeaf = !deafened;
-        remoteAudioRefs.current.forEach((audio) => { audio.muted = newDeaf; });
-        setDeafened(newDeaf);
+        try {
+            const lk = roomRef.current;
+            if (!lk) return;
+            const next = !deafened;
+            const remote = lk.remoteParticipants || lk.participants;
+            remote?.forEach((p) => {
+                if (p.isLocal) return;
+                (p.trackPublications || p.audioTracks)?.forEach((pub) => {
+                    const kind = pub.kind || pub.track?.kind;
+                    if (kind === 'audio') {
+                        if (typeof pub.setEnabled === 'function') pub.setEnabled(!next);
+                        else if (pub.track?.mediaStreamTrack) pub.track.mediaStreamTrack.enabled = !next;
+                    }
+                });
+            });
+            setDeafened(next);
+        } catch (err) { console.warn('[Voice] deafen:', err.message); }
     }
 
     return (
-        <div style={styles.container}>
-            <div style={styles.header}>🎙️ Voice Chat</div>
-            {error ? (
-                <div style={styles.error}>{error}</div>
-            ) : (
-                <>
-                    <div style={styles.status}>
-                        Connected: {connectedCount} / 4 others
-                    </div>
-                    <div style={styles.btnRow}>
-                        <button
-                            style={{ ...styles.btn, ...(muted ? styles.btnActive : {}) }}
-                            onClick={toggleMute}
-                        >
-                            {muted ? '🔇 Unmute' : '🎤 Mute'}
-                        </button>
-                        <button
-                            style={{ ...styles.btn, ...(deafened ? styles.btnActive : {}) }}
-                            onClick={toggleDeafen}
-                        >
-                            {deafened ? '🔊 Undeafen' : '🔈 Deafen'}
-                        </button>
-                    </div>
-                    <div style={styles.hint}>Auto-connects players in room. Max 5.</div>
-                </>
-            )}
+        <div style={S.wrap}>
+            <div style={S.header}>
+                <span>🎙 Voice</span>
+                <span style={connecting ? S.yellow : S.green}>
+                    {connecting ? '⏳ …' : `👥 ${connectedCount}`}
+                </span>
+            </div>
+
+            {error && <div style={S.err}>{error}</div>}
+
+            <div style={S.row}>
+                {/* MIC button — red when muted */}
+                <button
+                    onClick={toggleMute}
+                    title={muted ? 'Unmute mic' : 'Mute mic'}
+                    style={{ ...S.btn, background: muted ? '#c0392b' : '#27ae60' }}
+                >
+                    {muted ? '🔇 Muted' : '🎤 Live'}
+                </button>
+
+                {/* DEAFEN button — red when deafened */}
+                <button
+                    onClick={toggleDeafen}
+                    title={deafened ? 'Undeafen' : 'Deafen'}
+                    style={{ ...S.btn, background: deafened ? '#c0392b' : '#2980b9' }}
+                >
+                    {deafened ? '🔕 Deaf' : '🔊 Hearing'}
+                </button>
+            </div>
+
+            <div style={S.hint}>
+                {connectedCount <= 1 ? 'No others yet' : `${connectedCount - 1} player${connectedCount > 2 ? 's' : ''}`}
+            </div>
         </div>
     );
 }
 
-const styles = {
-    container: {
-        background: 'rgba(8,15,35,0.85)',
-        border: '1px solid rgba(0,255,200,0.2)',
-        borderRadius: '0.75rem',
-        padding: '0.9rem 1rem',
-        backdropFilter: 'blur(12px)',
-        color: '#e0e8ff',
-        fontFamily: '"Exo 2", sans-serif',
-        fontSize: '0.85rem',
-    },
-    header: {
-        fontWeight: 700,
-        color: '#00ffe0',
-        marginBottom: '0.5rem',
-        letterSpacing: '0.05em',
-    },
-    status: {
-        color: 'rgba(160,200,255,0.7)',
-        marginBottom: '0.6rem',
-        fontSize: '0.78rem',
-    },
-    btnRow: {
-        display: 'flex',
-        gap: '0.5rem',
-        marginBottom: '0.5rem',
-    },
-    btn: {
-        flex: 1,
-        padding: '0.4rem 0.6rem',
-        background: 'rgba(255,255,255,0.06)',
-        border: '1px solid rgba(0,255,200,0.2)',
-        borderRadius: '0.4rem',
-        color: '#c0d8ff',
-        cursor: 'pointer',
-        fontSize: '0.78rem',
-        fontFamily: '"Exo 2", sans-serif',
-        transition: 'all 0.15s',
-    },
-    btnActive: {
-        background: 'rgba(255,80,80,0.15)',
-        border: '1px solid rgba(255,80,80,0.4)',
-        color: '#ff7070',
-    },
-    error: {
-        color: '#ff7070',
-        fontSize: '0.75rem',
-        marginTop: '0.3rem',
-    },
-    hint: {
-        color: 'rgba(160,200,255,0.35)',
-        fontSize: '0.7rem',
-    },
+const S = {
+    wrap: { background: 'rgba(10,10,30,0.92)', border: '1.5px solid #00ff88', borderRadius: 8, padding: '10px 12px', color: '#00ff88', fontFamily: "'Courier New',monospace", fontSize: 12, minWidth: 200, boxShadow: '0 0 12px rgba(0,255,136,0.25)' },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, borderBottom: '1px solid #00ff88', paddingBottom: 6, fontWeight: 'bold', fontSize: 13 },
+    green: { color: '#00ff88', fontWeight: 'bold' },
+    yellow: { color: '#ffaa00' },
+    err: { background: '#c0392b', color: '#fff', padding: '6px 8px', borderRadius: 4, marginBottom: 8, fontSize: 11 },
+    row: { display: 'flex', gap: 8, marginBottom: 8 },
+    btn: { flex: 1, padding: '7px 4px', border: '1px solid #00ff88', borderRadius: 4, color: '#fff', fontFamily: "'Courier New',monospace", fontSize: 11, fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' },
+    hint: { textAlign: 'center', fontSize: 10, opacity: 0.6 },
 };
