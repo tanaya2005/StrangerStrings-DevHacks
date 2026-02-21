@@ -55,6 +55,7 @@ export default function Player({
     onTileTouch = null,
     portals = [],
     onPortalTouch = null,
+    onLavaTouch = null,      // Honeycomb: called when player hits lava floor
 }) {
     const playerRef = useRef();
     const keys = useKeyboard();
@@ -177,12 +178,11 @@ export default function Player({
         }
 
         // ---- Fall detection ----
-        if (pos.y < -19.5 && tiles && tiles.length > 0) {
-            // Honeycomb lava reset
-            pos.set(...startPosition);
-            velocityY.current = 0;
-            isGrounded.current = true;
+        if (pos.y < -18 && tiles && tiles.length > 0) {
+            // Honeycomb lava zone → eliminated, not respawn
+            onLavaTouch?.();
         } else if (pos.y < FALL_LIMIT) {
+            // Standard fall reset (other worlds)
             pos.set(...startPosition);
             velocityY.current = 0;
             isGrounded.current = true;
