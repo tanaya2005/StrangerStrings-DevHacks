@@ -1,0 +1,373 @@
+/* ============================================================
+   Lobby.css – Waiting Room Styles
+   Member 2 (Multiplayer)
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap");
+
+/* ---- Reset & Page Layout ---- */
+*,
+*::before,
+*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+.lobby-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #050a18;
+  font-family: "Exo 2", sans-serif;
+  color: #e0e8ff;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Animated grid / scanline background */
+.lobby-bg-anim {
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0,255,200,0.03) 1px, transparent 1px),
+    linear-gradient(90deg,  rgba(0,255,200,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: gridScroll 20s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes gridScroll {
+  from { background-position: 0 0; }
+  to   { background-position: 60px 60px; }
+}
+
+/* ---- Main Container ---- */
+.lobby-container {
+  position: relative;
+  z-index: 1;
+  width: min(96vw, 1100px);
+  padding: 2.5rem 2rem;
+  background: rgba(10, 18, 40, 0.88);
+  border: 1px solid rgba(0, 230, 180, 0.25);
+  border-radius: 1.5rem;
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 0 60px rgba(0,200,160,0.08),
+    0 0 1px rgba(0,200,160,0.3);
+  animation: fadeSlide 0.5s ease;
+}
+
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Title ---- */
+.lobby-title {
+  font-family: "Orbitron", monospace;
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  text-align: center;
+  background: linear-gradient(90deg, #00ffe0, #a862ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.3rem;
+}
+
+.lobby-subtitle {
+  text-align: center;
+  color: rgba(160, 200, 255, 0.6);
+  margin-bottom: 2rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* ---- Join Panel ---- */
+.join-panel {
+  max-width: 480px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.panel-label {
+  margin-bottom: 1.2rem;
+  font-size: 1rem;
+  color: rgba(200, 220, 255, 0.8);
+}
+
+.join-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.room-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(0,255,200,0.3);
+  border-radius: 0.6rem;
+  color: #e0f0ff;
+  font-size: 1.05rem;
+  font-family: "Orbitron", monospace;
+  letter-spacing: 0.1em;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.room-input:focus { border-color: #00ffe0; }
+
+.btn-join {
+  padding: 0.75rem 1.4rem;
+  background: linear-gradient(135deg, #00c9a7, #5e35e8);
+  border: none;
+  border-radius: 0.6rem;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s, transform 0.15s;
+}
+.btn-join:hover { opacity: 0.9; transform: scale(1.02); }
+
+/* ---- Error ---- */
+.lobby-error {
+  margin-top: 0.8rem;
+  color: #ff6b6b;
+  font-size: 0.9rem;
+}
+
+/* ---- Room Panel ---- */
+.room-panel { position: relative; }
+
+.room-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 680px) {
+  .room-layout { grid-template-columns: 1fr; }
+}
+
+/* ---- Countdown overlay ---- */
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Orbitron", monospace;
+  font-size: clamp(5rem, 18vw, 12rem);
+  font-weight: 900;
+  color: #00ffe0;
+  text-shadow: 0 0 40px #00ffe0, 0 0 100px rgba(0,255,224,0.5);
+  background: rgba(5, 10, 24, 0.85);
+  border-radius: 1.2rem;
+  z-index: 10;
+  animation: pulse 0.6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.countdown-overlay.go {
+  color: #ff9f1c;
+  text-shadow: 0 0 40px #ff9f1c, 0 0 100px rgba(255,160,28,0.5);
+  font-size: clamp(4rem, 14vw, 10rem);
+}
+@keyframes pulse {
+  from { transform: scale(1); }
+  to   { transform: scale(1.06); }
+}
+
+/* ---- Players Sidebar ---- */
+.players-sidebar {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(0,200,160,0.15);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.sidebar-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #00ffe0;
+  margin-bottom: 0.2rem;
+}
+
+.player-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 1;
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.6rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  transition: background 0.2s;
+}
+.player-item.self {
+  background: rgba(0,200,160,0.1);
+  border-color: rgba(0,200,160,0.3);
+}
+
+.player-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00c9a7, #5e35e8);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.9rem; color: #fff;
+  flex-shrink: 0;
+}
+
+.player-name {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #d0e8ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ready-badge {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ready-badge.ready    { background: rgba(0,220,150,0.2); color: #00e89a; border: 1px solid rgba(0,220,150,0.4); }
+.ready-badge.not-ready{ background: rgba(255,100,100,0.12); color: rgba(255,180,180,0.7); border: 1px solid rgba(255,100,100,0.25); }
+
+/* ---- Ready Button ---- */
+.btn-ready {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid rgba(0,200,160,0.4);
+  background: transparent;
+  color: #00ffe0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  transition: all 0.25s;
+  font-family: "Exo 2", sans-serif;
+}
+.btn-ready:hover, .btn-ready.active {
+  background: rgba(0,200,160,0.18);
+  border-color: #00ffe0;
+  box-shadow: 0 0 20px rgba(0,255,224,0.25);
+}
+.btn-ready:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.start-hint {
+  font-size: 0.78rem;
+  color: rgba(160, 200, 255, 0.5);
+  text-align: center;
+}
+
+/* ---- Chat Panel ---- */
+.chat-panel {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(0,200,160,0.15);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-height: 400px;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-right: 0.3rem;
+  max-height: 340px;
+  min-height: 200px;
+}
+
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-thumb { background: rgba(0,200,160,0.3); border-radius: 999px; }
+
+.chat-empty {
+  margin: auto;
+  color: rgba(160,200,255,0.4);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+  gap: 0.15rem;
+}
+.chat-msg.mine   { align-self: flex-end; }
+.chat-msg.theirs { align-self: flex-start; }
+
+.chat-sender {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(0,220,160,0.7);
+  padding: 0 0.3rem;
+}
+.chat-msg.mine .chat-sender { color: rgba(160, 120, 255, 0.8); text-align: right; }
+
+.chat-text {
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.8rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.chat-msg.mine   .chat-text { background: rgba(100,60,220,0.25); border: 1px solid rgba(140,100,255,0.3); border-radius: 0.8rem 0.2rem 0.8rem 0.8rem; }
+.chat-msg.theirs .chat-text { background: rgba(0,160,120,0.15); border: 1px solid rgba(0,200,150,0.25); border-radius: 0.2rem 0.8rem 0.8rem 0.8rem; }
+
+/* ---- Chat Form ---- */
+.chat-form {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: auto;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 0.65rem 0.9rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(0,200,160,0.25);
+  border-radius: 0.6rem;
+  color: #e0f0ff;
+  font-size: 0.9rem;
+  font-family: "Exo 2", sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.chat-input:focus { border-color: #00ffe0; }
+
+.btn-send {
+  padding: 0.65rem 1.1rem;
+  background: linear-gradient(135deg, #00c9a7, #5e35e8);
+  border: none;
+  border-radius: 0.6rem;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s;
+  font-family: "Exo 2", sans-serif;
+}
+.btn-send:hover { opacity: 0.9; transform: scale(1.03); }

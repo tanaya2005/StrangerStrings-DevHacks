@@ -1,0 +1,233 @@
+/* ============================================================
+   Leaderboard.css
+   ============================================================ */
+@import url("https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap");
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.lb-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: #050a18;
+    font-family: "Exo 2", sans-serif;
+    color: #e0e8ff;
+    overflow-x: hidden;
+    position: relative;
+    padding: 2rem 1rem 4rem;
+}
+
+.lb-bg-anim {
+    position: fixed;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(168, 100, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(168, 100, 255, 0.03) 1px, transparent 1px);
+    background-size: 70px 70px;
+    animation: lbGrid 25s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes lbGrid {
+    from {
+        background-position: 0 0;
+    }
+
+    to {
+        background-position: 70px 70px;
+    }
+}
+
+.lb-container {
+    position: relative;
+    z-index: 1;
+    width: min(96vw, 700px);
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.lb-title {
+    font-family: "Orbitron", monospace;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    text-align: center;
+    background: linear-gradient(90deg, #00ffe0, #a862ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-top: 1rem;
+}
+
+.lb-section {
+    background: rgba(10, 18, 40, 0.85);
+    border: 1px solid rgba(0, 200, 160, 0.2);
+    border-radius: 1.2rem;
+    padding: 1.5rem;
+    backdrop-filter: blur(16px);
+}
+
+.lb-section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #00ffe0;
+    margin-bottom: 1rem;
+}
+
+/* ---- Race cards ---- */
+.lb-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.lb-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    transition: background 0.2s;
+}
+
+.lb-card.self {
+    background: rgba(0, 200, 160, 0.1);
+    border-color: rgba(0, 255, 200, 0.3);
+}
+
+.lb-card.eliminated {
+    opacity: 0.55;
+    border-color: rgba(255, 80, 80, 0.2);
+}
+
+.lb-rank {
+    font-size: 1.3rem;
+    min-width: 2rem;
+    text-align: center;
+}
+
+.lb-player-name {
+    flex: 1;
+    font-weight: 600;
+    color: #d0e8ff;
+}
+
+.lb-time {
+    font-family: "Orbitron", monospace;
+    font-size: 0.85rem;
+    color: #ffe066;
+}
+
+/* ---- Global table ---- */
+.lb-global-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.lb-row {
+    display: grid;
+    grid-template-columns: 40px 1fr auto auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.9rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0.6rem;
+    font-size: 0.88rem;
+}
+
+.lb-row.self {
+    background: rgba(0, 200, 160, 0.1);
+    border-color: rgba(0, 255, 200, 0.25);
+}
+
+.lb-row:first-child {
+    background: rgba(255, 200, 50, 0.07);
+    border-color: rgba(255, 200, 50, 0.2);
+}
+
+.lb-row-rank {
+    text-align: center;
+    font-weight: 700;
+    color: rgba(200, 200, 255, 0.5);
+}
+
+.lb-row-name {
+    color: #c0d8ff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lb-row-trophies {
+    font-weight: 700;
+    color: #ffd166;
+}
+
+.lb-row-wins {
+    color: rgba(160, 220, 255, 0.7);
+    font-size: 0.8rem;
+}
+
+.lb-loading {
+    color: rgba(160, 200, 255, 0.5);
+}
+
+.lb-error {
+    color: #ff6b6b;
+}
+
+.lb-empty {
+    color: rgba(160, 200, 255, 0.4);
+}
+
+/* ---- Actions ---- */
+.lb-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-action {
+    padding: 0.8rem 2rem;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: "Exo 2", sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-action.primary {
+    background: linear-gradient(135deg, #00c9a7, #5e35e8);
+    border: none;
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(0, 200, 160, 0.3);
+}
+
+.btn-action.primary:hover {
+    opacity: 0.9;
+    transform: scale(1.03);
+}
+
+.btn-action.secondary {
+    background: transparent;
+    border: 1px solid rgba(0, 200, 160, 0.4);
+    color: #00ffe0;
+}
+
+.btn-action.secondary:hover {
+    background: rgba(0, 200, 160, 0.1);
+}
