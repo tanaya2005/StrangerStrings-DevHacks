@@ -11,6 +11,7 @@ import connectDB from "./config/db.js";
 import leaderboardRoutes from "./routes/leaderboardRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import { registerGameSocket } from "./socket/gameSocket.js";
+import { attachChat } from "./socket/chat.js";
 
 // Load environment variables from .env
 dotenv.config();
@@ -48,6 +49,9 @@ const io = new Server(httpServer, {
 
 // ---- Register all game socket logic ----
 registerGameSocket(io);
+
+// ---- Register chat + PeerJS voice signaling (archit2 Task 4) ----
+attachChat(io);
 
 // ---- Connect MongoDB ----
 connectDB().catch((err) =>

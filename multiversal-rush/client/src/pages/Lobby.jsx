@@ -14,6 +14,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import socket from "../socket/socket";
 import useStore from "../store/store";
+import Voice from "../voice/Voice";
 import "./Lobby.css";
 
 export default function Lobby() {
@@ -234,6 +235,9 @@ export default function Lobby() {
                                         ? "🚀 Starting…"
                                         : "Need 2+ players all ready to start"}
                                 </p>
+
+                                {/* === Voice Chat (archit2 Task 4) === */}
+                                <Voice name={playerName} room={inputRoom || "lobby"} />
                             </div>
 
                             {/* === Chat panel === */}
