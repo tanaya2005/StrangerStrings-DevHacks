@@ -8,6 +8,7 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import useStore from '../../store/store';
+import { useGLTF } from '@react-three/drei';
 import { checkAABB, resolveCollisionY } from '../../utils/collision';
 
 const MOVE_SPEED = 10;
@@ -61,6 +62,19 @@ export default function Player({
     const keys = useKeyboard();
     const { camera } = useThree();
 
+    // ---- Load Human Model ----
+    const { scene } = useGLTF('/models/glTF/scene.gltf');
+
+    // Optimize model for FPS
+    useEffect(() => {
+        scene.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = false;
+                child.receiveShadow = false;
+            }
+        });
+    }, [scene]);
+
     const velocityY = useRef(0);
     const isGrounded = useRef(true);
 
@@ -84,9 +98,19 @@ export default function Player({
         // ---- 2. Crouch ----
         const isCrouching = keys.current.shift;
         const currentSpeed = isCrouching ? CROUCH_SPEED : MOVE_SPEED;
-        const targetScaleY = isCrouching ? 0.5 : 1.0;
+
+        // Base scale is 1.2. Crouch scale is 0.6 (half of 1.2)
+        const targetScaleY = isCrouching ? 0.6 : 1.2;
         playerRef.current.scale.y = THREE.MathUtils.lerp(playerRef.current.scale.y, targetScaleY, 15 * delta);
         pos.addScaledVector(direction.current, currentSpeed * delta);
+
+        // ---- Character Rotation ----
+        // Rotates the model to vividly face the direction of its movement vector
+        if (direction.current.lengthSq() > 0) {
+            const targetAngle = Math.atan2(direction.current.x, direction.current.z);
+            const targetRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
+            playerRef.current.quaternion.slerp(targetRotation, 15 * delta);
+        }
 
         // ---- 3. Jump & gravity ----
         if (keys.current[' '] && isGrounded.current && !isCrouching) {
@@ -100,9 +124,10 @@ export default function Player({
         let hitPlatform = false;
         let snapY = null;
 
-        const playerSize = { x: 1, y: 1 * targetScaleY, z: 1 };
-        const playerMin = { x: pos.x - 0.5, y: nextY - playerSize.y / 2, z: pos.z - 0.5 };
-        const playerMax = { x: pos.x + 0.5, y: nextY + playerSize.y / 2, z: pos.z + 0.5 };
+        // Player size is normalized relative to scale 1.2
+        const playerSize = { x: 1.2, y: 1.2 * (targetScaleY / 1.2), z: 1.2 };
+        const playerMin = { x: pos.x - playerSize.x / 2, y: nextY - playerSize.y / 2, z: pos.z - playerSize.z / 2 };
+        const playerMax = { x: pos.x + playerSize.x / 2, y: nextY + playerSize.y / 2, z: pos.z + playerSize.z / 2 };
 
         const platforms = useStore.getState().platforms;
 
@@ -207,9 +232,15 @@ export default function Player({
     });
 
     return (
-        <mesh ref={playerRef} position={startPosition} castShadow>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshStandardMaterial color="#00ffcc" emissive="#00ffcc" emissiveIntensity={0.15} />
-        </mesh>
+        <group ref={playerRef} position={startPosition} scale={[1.2, 1.2, 1.2]}>
+            {/* Human Model */}
+            <primitive object={scene} />
+
+            {/* Invisible Collider for AABB */}
+            <mesh visible={false}>
+                <boxGeometry args={[1, 1, 1]} />
+                <meshBasicMaterial />
+            </mesh>
+        </group>
     );
 }
