@@ -50,7 +50,7 @@
 
 ### Your Server URL:
 ```
-https://multiversal-rush.onrender.com
+https://strangerstrings-devhacks.onrender.com
 ```
 
 ### Environment Variables Needed on Render:
@@ -63,7 +63,7 @@ https://multiversal-rush.onrender.com
 - LIVEKIT_URL
 
 ### Environment Variable Needed on Vercel:
-- VITE_SERVER_URL=https://multiversal-rush.onrender.com
+- VITE_SERVER_URL=https://strangerstrings-devhacks.onrender.com
 
 ## ✅ Current Status
 

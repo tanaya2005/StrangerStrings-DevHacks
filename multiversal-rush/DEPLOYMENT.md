@@ -33,7 +33,7 @@ LIVEKIT_URL=https://multiversal-dash-kghg7hd6.livekit.cloud
 ### 3. Your Server URL
 After deployment, your server will be at:
 ```
-https://multiversal-rush.onrender.com
+https://strangerstrings-devhacks.onrender.com
 ```
 
 ---
@@ -54,7 +54,7 @@ https://multiversal-rush.onrender.com
 
 5. Add Environment Variable:
    ```
-   VITE_SERVER_URL=https://multiversal-rush.onrender.com
+   VITE_SERVER_URL=https://strangerstrings-devhacks.onrender.com
    ```
 
 6. Deploy!
@@ -71,7 +71,7 @@ https://multiversal-rush.onrender.com
 
 5. Add Environment Variable:
    ```
-   VITE_SERVER_URL=https://multiversal-rush.onrender.com
+   VITE_SERVER_URL=https://strangerstrings-devhacks.onrender.com
    ```
 
 6. Deploy!
@@ -83,7 +83,7 @@ https://multiversal-rush.onrender.com
 ### CORS Configuration
 The server is already configured to accept requests from:
 - `http://localhost:5173` (local dev)
-- `https://multiversal-rush.onrender.com` (production)
+- `https://strangerstrings-devhacks.onrender.com` (production)
 - Any URL set in `CLIENT_URL` environment variable
 
 If you deploy the client to a different URL, update the `CLIENT_URL` environment variable on Render.

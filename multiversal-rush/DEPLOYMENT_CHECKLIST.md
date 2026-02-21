@@ -37,7 +37,7 @@
 4. **Deploy!**
    - Click "Create Web Service"
    - Wait for deployment (5-10 minutes)
-   - Your server URL: `https://multiversal-rush.onrender.com`
+   - Your server URL: `https://strangerstrings-devhacks.onrender.com`
 
 ## 🌐 Deploy Client to Vercel
 
@@ -55,7 +55,7 @@
 
 3. **Add Environment Variable**
    ```
-   VITE_SERVER_URL=https://multiversal-rush.onrender.com
+   VITE_SERVER_URL=https://strangerstrings-devhacks.onrender.com
    ```
 
 4. **Deploy!**
@@ -100,7 +100,7 @@
 After deployment, save these:
 
 ```
-Server (Render): https://multiversal-rush.onrender.com
+Server (Render): https://strangerstrings-devhacks.onrender.com
 Client (Vercel): https://YOUR-APP.vercel.app
 MongoDB: Already configured
 LiveKit: Already configured
