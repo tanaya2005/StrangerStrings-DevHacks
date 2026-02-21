@@ -7,6 +7,8 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import Player from '../Player/Player';
 
+import Platform from '../Obstacles/Platform';
+
 /**
  * Props from Game.jsx:
  *   emitMove(data)              — broadcast player position
@@ -31,27 +33,20 @@ export default function World1({ emitMove, emitWorldTransition, emitFell }) {
             <pointLight position={[0, 5, 0]} color="#00ffe0" intensity={0.6} />
 
             {/* ---- Ground platform (Tanaya's anti-gravity vibe) ---- */}
-            <mesh position={[0, -0.5, 0]} receiveShadow>
-                <boxGeometry args={[30, 1, 60]} />
-                <meshStandardMaterial color="#0a1a2f" />
-            </mesh>
+            <Platform position={[0, -0.5, 0]} scale={[30, 1, 60]} type="static" color="#0a1a2f" />
 
             {/* ---- Grid lines on ground for cyberpunk feel ---- */}
             <gridHelper args={[30, 30, '#00ffe0', '#003355']} position={[0, 0.01, 0]} />
 
-            {/* ---- Some platforms to jump on ---- */}
-            <mesh position={[4, 1, -6]} castShadow receiveShadow>
-                <boxGeometry args={[4, 0.5, 4]} />
-                <meshStandardMaterial color="#1a2a4a" emissive="#004466" emissiveIntensity={0.3} />
-            </mesh>
-            <mesh position={[-4, 2, -14]} castShadow receiveShadow>
-                <boxGeometry args={[4, 0.5, 4]} />
-                <meshStandardMaterial color="#1a2a4a" emissive="#004466" emissiveIntensity={0.3} />
-            </mesh>
-            <mesh position={[5, 3, -22]} castShadow receiveShadow>
-                <boxGeometry args={[4, 0.5, 4]} />
-                <meshStandardMaterial color="#1a2a4a" emissive="#004466" emissiveIntensity={0.3} />
-            </mesh>
+            {/* ---- Platforms (Using new Custom Collision Engine) ---- */}
+            {/* 1. Static Platform */}
+            <Platform position={[4, 1, -6]} scale={[4, 0.5, 4]} type="static" color="#1a2a4a" />
+
+            {/* 2. Moving Platform */}
+            <Platform position={[-4, 2, -14]} scale={[4, 0.5, 4]} type="moving" axis="x" range={6} speed={2} color="#ff00cc" />
+
+            {/* 3. Rotating Platform */}
+            <Platform position={[5, 3, -22]} scale={[4, 0.5, 4]} type="rotating" speed={1.5} color="#00ffcc" />
 
             {/* ---- Portal to World 2 (at z = -26) ---- */}
             <group position={[0, 2.5, -26]}>

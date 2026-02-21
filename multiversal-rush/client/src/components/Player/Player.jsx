@@ -6,6 +6,8 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import useStore from '../../store/store';
+import { checkAABB, resolveCollisionY } from '../../utils/collision';
 
 const MOVE_SPEED = 10;
 const CROUCH_SPEED = 5;
@@ -99,14 +101,51 @@ export default function Player({
             velocityY.current = JUMP_POWER;
             isGrounded.current = false;
         }
-        velocityY.current += GRAVITY * delta;
-        pos.y += velocityY.current * delta;
 
-        // ---- Ground snap ----
-        if (pos.y <= BASE_Y) {
-            pos.y = BASE_Y;
+        velocityY.current += GRAVITY * delta;
+        const nextY = pos.y + velocityY.current * delta;
+
+        // ---- 4. Platform Collision (AABB) ----
+        let hitPlatform = false;
+        let snapY = null;
+
+        const playerSize = { x: 1, y: 1 * targetScaleY, z: 1 };
+        const playerMin = { x: pos.x - playerSize.x / 2, y: nextY - playerSize.y / 2, z: pos.z - playerSize.z / 2 };
+        const playerMax = { x: pos.x + playerSize.x / 2, y: nextY + playerSize.y / 2, z: pos.z + playerSize.z / 2 };
+
+        const platforms = useStore.getState().platforms;
+
+        for (const pid in platforms) {
+            const plat = platforms[pid];
+            const pMin = { x: plat.position.x - plat.size[0] / 2, y: plat.position.y - plat.size[1] / 2, z: plat.position.z - plat.size[2] / 2 };
+            const pMax = { x: plat.position.x + plat.size[0] / 2, y: plat.position.y + plat.size[1] / 2, z: plat.position.z + plat.size[2] / 2 };
+
+            if (checkAABB(playerMin, playerMax, pMin, pMax)) {
+                // We have an intersection, check Y resolution
+                const resolveY = resolveCollisionY(playerMin, playerMax, pMin, pMax, velocityY.current);
+                if (resolveY !== null) {
+                    hitPlatform = true;
+                    // Snap the player center upwards
+                    snapY = resolveY + playerSize.y / 2;
+
+                    // Moving platforms pull player along
+                    if (plat.type === 'moving' && plat.velocity) {
+                        pos.x += plat.velocity.x * delta;
+                        pos.y += plat.velocity.y * delta;
+                        pos.z += plat.velocity.z * delta;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (hitPlatform && snapY !== null) {
+            pos.y = snapY;
             velocityY.current = 0;
             isGrounded.current = true;
+        } else {
+            pos.y = nextY;
+            isGrounded.current = false;
         }
 
         // ---- Fall detection (Varun) ----

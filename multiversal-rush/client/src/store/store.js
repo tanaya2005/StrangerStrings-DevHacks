@@ -109,6 +109,17 @@ const useStore = create((set, get) => ({
     // ---- Leaderboard ----
     leaderboard: [],
     setLeaderboard: (lb) => set({ leaderboard: lb }),
+
+    // ---- Platforms (Collisions) ----
+    platforms: {},
+    setPlatform: (id, data) => set((state) => ({
+        platforms: { ...state.platforms, [id]: data }
+    })),
+    removePlatform: (id) => set((state) => {
+        const p = { ...state.platforms };
+        delete p[id];
+        return { platforms: p };
+    }),
 }));
 
 export default useStore;

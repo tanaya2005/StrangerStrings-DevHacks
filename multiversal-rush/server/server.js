@@ -15,7 +15,7 @@ import { attachChat } from "./socket/chat.js";
 import { ExpressPeerServer } from "peer";
 
 // Load environment variables from .env
-dotenv.config();
+dotenv.config({ override: true });
 
 // ---- Express App Setup ----
 const app = express();
