@@ -1,5 +1,6 @@
 // ============================================================
 //  controllers/leaderboardController.js
+//  Uses merged User schema (email + username + trophies)
 // ============================================================
 import User from "../models/User.js";
 
@@ -12,7 +13,7 @@ export async function getLeaderboard(req, res) {
         const players = await User.find()
             .sort({ trophies: -1 })
             .limit(20)
-            .select("username trophies wins gamesPlayed");
+            .select("username email trophies wins gamesPlayed");
         res.json(players);
     } catch (err) {
         console.error("[Leaderboard GET]", err);
@@ -30,17 +31,15 @@ export async function updateTrophies(req, res) {
         const { username, trophiesToAdd = 0, win = false } = req.body;
         if (!username) return res.status(400).json({ error: "username is required" });
 
-        const update = {
-            $inc: {
-                trophies: trophiesToAdd,
-                gamesPlayed: 1,
-                ...(win ? { wins: 1 } : {}),
-            },
-        };
-
         const user = await User.findOneAndUpdate(
             { username: { $regex: new RegExp(`^${username}$`, "i") } },
-            update,
+            {
+                $inc: {
+                    trophies: trophiesToAdd,
+                    gamesPlayed: 1,
+                    ...(win ? { wins: 1 } : {}),
+                },
+            },
             { new: true }
         );
 

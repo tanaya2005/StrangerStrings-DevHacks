@@ -1,7 +1,8 @@
 // ============================================================
 //  store/store.js — Zustand global state
-//  Member 2 owns the multiplayer slices.
-//  Member 3 can add an auth slice below.
+//  Member 2: multiplayer slices
+//  Auth: merged (Atharva DB schema + Varun DOB frontend)
+//  user shape: { id, username, email, trophies, wins, gamesPlayed }
 // ============================================================
 import { create } from "zustand";
 

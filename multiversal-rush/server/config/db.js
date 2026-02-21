@@ -1,28 +1,28 @@
 // ============================================================
-//  config/db.js — MongoDB Atlas connection
-//  Used by Member 3's leaderboard routes.
-//  Member 2 calls this in server.js so routes work.
+//  config/db.js — MongoDB connection
+//  Supports both MONGO_URI (Varun) and MONGODB_URI (Atharva)
 // ============================================================
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-/**
- * Connect to MongoDB Atlas.
- * Returns a promise so server.js can .catch() gracefully
- * if the URI isn't set yet during development.
- */
 async function connectDB() {
-    const uri = process.env.MONGO_URI;
+    // Support both naming conventions
+    const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
 
     if (!uri || uri.includes("<username>")) {
-        console.warn("⚠️  MONGO_URI not set – skipping DB connection");
+        console.warn("⚠️  MongoDB URI not set – skipping DB connection");
         return;
     }
 
-    await mongoose.connect(uri);
-    console.log("✅ MongoDB connected");
+    try {
+        const conn = await mongoose.connect(uri);
+        console.log(`✅ MongoDB connected: ${conn.connection.host}`);
+    } catch (err) {
+        console.error(`❌ MongoDB connection failed: ${err.message}`);
+        // Don't exit — let the server run without DB (socket still works)
+    }
 }
 
 export default connectDB;

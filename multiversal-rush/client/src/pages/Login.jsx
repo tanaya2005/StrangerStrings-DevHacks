@@ -1,15 +1,17 @@
 // ============================================================
-//  pages/Login.jsx — Sign Up + Login (custom auth, no Firebase)
+//  pages/Login.jsx — Sign Up + Sign In
 //
-//  Sign Up requires:
-//    • Unique username (3-20 chars, letters/numbers/underscore)
+//  Sign Up (Atharva's DB + Varun's DOB):
+//    • Email (unique account identifier — Atharva)
+//    • Username (3-20 chars, display name — both)
 //    • Password (min 6 chars)
-//    • Date of Birth → user must be 13+ years old
+//    • Date of Birth (must be 13+) — Varun
 //
-//  Login requires:
-//    • Username + Password
+//  Sign In (Atharva's pattern):
+//    • Email + Password
 //
-//  On success → saves JWT to localStorage → navigates to /lobby
+//  Frontend: Varun's cyberpunk design (kept intact)
+//  Backend : Atharva's User schema (email = login key)
 // ============================================================
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +20,7 @@ import "./Login.css";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
-// ---- Age validation helper (must be older than 12 = at least 13) ----
+// ---- Age helper ----
 function calculateAge(dobString) {
     if (!dobString) return 0;
     const today = new Date();
@@ -29,11 +31,11 @@ function calculateAge(dobString) {
     return age;
 }
 
-// ---- Max allowed DOB (must be 13+ today) ----
+// Browsers can't pick a DOB that would make user < 13
 function maxDOBString() {
     const d = new Date();
     d.setFullYear(d.getFullYear() - 13);
-    return d.toISOString().split("T")[0]; // "YYYY-MM-DD"
+    return d.toISOString().split("T")[0];
 }
 
 export default function Login() {
@@ -41,40 +43,49 @@ export default function Login() {
     const setPlayerName = useStore((s) => s.setPlayerName);
     const setUser = useStore((s) => s.setUser);
 
-    // ---- Tab state ----
-    const [tab, setTab] = useState("login"); // "login" | "signup"
+    // ---- Tab ----
+    const [tab, setTab] = useState("login");
 
-    // ---- Form fields ----
+    // ---- Sign-up fields ----
+    const [email, setEmail] = useState("");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [dob, setDob] = useState("");
     const [showPass, setShowPass] = useState(false);
 
-    // ---- UI state ----
+    // ---- Login fields (reuse email/password from above) ----
+
+    // ---- UI ----
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    // ---- Reset form when switching tabs ----
     function switchTab(t) {
         setTab(t);
-        setError("");
-        setSuccess("");
-        setUsername("");
-        setPassword("");
-        setDob("");
+        setError(""); setSuccess("");
+        setEmail(""); setUsername(""); setPassword(""); setDob("");
+    }
+
+    // ---- Receives the response user object and logs in ----
+    function handleAuthSuccess(data) {
+        localStorage.setItem("mr_token", data.token);
+        localStorage.setItem("mr_user", JSON.stringify(data.user));
+        setUser(data.user);
+        setPlayerName(data.user.username);  // username shown in lobby / game
     }
 
     // ====================================================
-    //  Sign Up handler
+    //  Sign Up
     // ====================================================
     async function handleSignup(e) {
         e.preventDefault();
         setError(""); setSuccess("");
 
-        // --- Client-side validation ---
-        if (!username.trim() || !password || !dob) {
+        if (!email.trim() || !username.trim() || !password || !dob) {
             return setError("All fields are required.");
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return setError("Please enter a valid email address.");
         }
         if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
             return setError("Username: 3-20 chars, letters/numbers/underscore only.");
@@ -92,22 +103,23 @@ export default function Login() {
             const res = await fetch(`${SERVER_URL}/api/auth/signup`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: username.trim(), password, dateOfBirth: dob }),
+                body: JSON.stringify({
+                    email: email.trim(),
+                    username: username.trim(),
+                    password,
+                    dateOfBirth: dob,
+                }),
             });
             const data = await res.json();
 
             if (!res.ok) {
                 setError(data.error || "Signup failed. Try again.");
             } else {
-                // ---- Success: save token + enter lobby ----
-                localStorage.setItem("mr_token", data.token);
-                localStorage.setItem("mr_user", JSON.stringify(data.user));
-                setUser(data.user);
-                setPlayerName(data.user.username);
+                handleAuthSuccess(data);
                 setSuccess("Account created! Entering the multiverse… 🚀");
                 setTimeout(() => navigate("/lobby"), 800);
             }
-        } catch (err) {
+        } catch {
             setError("Cannot reach server. Is the backend running?");
         } finally {
             setLoading(false);
@@ -115,14 +127,14 @@ export default function Login() {
     }
 
     // ====================================================
-    //  Login handler
+    //  Sign In
     // ====================================================
     async function handleLogin(e) {
         e.preventDefault();
         setError(""); setSuccess("");
 
-        if (!username.trim() || !password) {
-            return setError("Username and password are required.");
+        if (!email.trim() || !password) {
+            return setError("Email and password are required.");
         }
 
         setLoading(true);
@@ -130,21 +142,18 @@ export default function Login() {
             const res = await fetch(`${SERVER_URL}/api/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: username.trim(), password }),
+                body: JSON.stringify({ email: email.trim(), password }),
             });
             const data = await res.json();
 
             if (!res.ok) {
                 setError(data.error || "Login failed. Check your credentials.");
             } else {
-                localStorage.setItem("mr_token", data.token);
-                localStorage.setItem("mr_user", JSON.stringify(data.user));
-                setUser(data.user);
-                setPlayerName(data.user.username);
+                handleAuthSuccess(data);
                 setSuccess("Welcome back! Entering the multiverse… 🚀");
                 setTimeout(() => navigate("/lobby"), 800);
             }
-        } catch (err) {
+        } catch {
             setError("Cannot reach server. Is the backend running?");
         } finally {
             setLoading(false);
@@ -164,31 +173,25 @@ export default function Login() {
 
             <div className="login-card">
 
-                {/* ---- Logo + Title ---- */}
+                {/* ---- Logo ---- */}
                 <div className="login-logo">🌌</div>
                 <h1 className="login-title">Multiversal Rush</h1>
                 <p className="login-tagline">Race through dimensions. Survive. Win.</p>
 
-                {/* ---- Tab Switcher ---- */}
+                {/* ---- Tab switcher ---- */}
                 <div className="tab-bar" role="tablist">
                     <button
-                        role="tab"
-                        id="tab-login"
+                        role="tab" id="tab-login"
                         aria-selected={tab === "login"}
                         className={`tab-btn ${tab === "login" ? "active" : ""}`}
                         onClick={() => switchTab("login")}
-                    >
-                        Sign In
-                    </button>
+                    >Sign In</button>
                     <button
-                        role="tab"
-                        id="tab-signup"
+                        role="tab" id="tab-signup"
                         aria-selected={tab === "signup"}
                         className={`tab-btn ${tab === "signup" ? "active" : ""}`}
                         onClick={() => switchTab("signup")}
-                    >
-                        Sign Up
-                    </button>
+                    >Sign Up</button>
                     <div className={`tab-indicator ${tab === "signup" ? "right" : "left"}`} />
                 </div>
 
@@ -200,23 +203,42 @@ export default function Login() {
                     noValidate
                 >
 
-                    {/* Username */}
+                    {/* Email — always shown */}
                     <div className="field-group">
-                        <label className="field-label" htmlFor="input-username">Username</label>
+                        <label className="field-label" htmlFor="input-email">Email</label>
                         <input
-                            id="input-username"
+                            id="input-email"
                             className="login-input"
-                            type="text"
-                            placeholder="your_username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            maxLength={20}
-                            autoComplete="username"
+                            type="email"
+                            placeholder="you@email.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            autoComplete="email"
                             autoFocus
                         />
                     </div>
 
-                    {/* Password */}
+                    {/* Username — signup only */}
+                    {tab === "signup" && (
+                        <div className="field-group">
+                            <label className="field-label" htmlFor="input-username">
+                                Username
+                                <span className="field-hint"> (shown in-game)</span>
+                            </label>
+                            <input
+                                id="input-username"
+                                className="login-input"
+                                type="text"
+                                placeholder="your_username"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                maxLength={20}
+                                autoComplete="username"
+                            />
+                        </div>
+                    )}
+
+                    {/* Password — always shown */}
                     <div className="field-group">
                         <label className="field-label" htmlFor="input-password">Password</label>
                         <div className="password-row">
@@ -231,8 +253,7 @@ export default function Login() {
                                 autoComplete={tab === "login" ? "current-password" : "new-password"}
                             />
                             <button
-                                type="button"
-                                id="btn-toggle-pass"
+                                type="button" id="btn-toggle-pass"
                                 className="toggle-pass"
                                 onClick={() => setShowPass((v) => !v)}
                                 aria-label={showPass ? "Hide password" : "Show password"}
@@ -242,7 +263,7 @@ export default function Login() {
                         </div>
                     </div>
 
-                    {/* Date of Birth — only on Sign Up */}
+                    {/* Date of Birth — signup only */}
                     {tab === "signup" && (
                         <div className="field-group">
                             <label className="field-label" htmlFor="input-dob">
@@ -255,9 +276,8 @@ export default function Login() {
                                 type="date"
                                 value={dob}
                                 onChange={(e) => setDob(e.target.value)}
-                                max={maxDOBString()}   /* browser can't pick a date that makes user under 13 */
+                                max={maxDOBString()}
                             />
-                            {/* Live age preview */}
                             {dob && (
                                 <span className={`age-preview ${calculateAge(dob) < 13 ? "age-fail" : "age-ok"}`}>
                                     {calculateAge(dob) < 13
@@ -268,11 +288,11 @@ export default function Login() {
                         </div>
                     )}
 
-                    {/* Error / Success messages */}
+                    {/* Feedback */}
                     {error && <p className="login-error" role="alert">{error}</p>}
                     {success && <p className="login-success" role="status">{success}</p>}
 
-                    {/* Submit button */}
+                    {/* Submit */}
                     <button
                         id={tab === "login" ? "btn-signin" : "btn-signup"}
                         className="btn-enter"
@@ -287,7 +307,6 @@ export default function Login() {
                     </button>
                 </form>
 
-                {/* Footer hint */}
                 <p className="login-hint">
                     {tab === "login"
                         ? "Don't have an account? Click Sign Up above."

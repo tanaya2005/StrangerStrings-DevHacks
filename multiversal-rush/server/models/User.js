@@ -1,27 +1,38 @@
 // ============================================================
-//  models/User.js — MongoDB User schema (custom auth, no Firebase)
+//  models/User.js — MongoDB User schema
+//  Merged: Atharva's email+username schema + Varun's DOB validation
+//  Uses ESM (import/export) to match our server.js
 // ============================================================
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
-const userSchema = new mongoose.Schema(
+const UserSchema = new mongoose.Schema(
     {
-        // ---- Auth fields ----
+        // ---- Auth fields (Atharva's pattern: email is the login key) ----
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+            trim: true,
+            lowercase: true,
+            match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,   // basic email format check
+        },
         username: {
             type: String,
             required: true,
-            unique: true,        // enforced at DB level
+            unique: true,           // unique so it can be shown on leaderboard
             trim: true,
             minlength: 3,
             maxlength: 20,
-            match: /^[a-zA-Z0-9_]+$/,  // alphanumeric + underscore only
+            match: /^[a-zA-Z0-9_]+$/,   // alphanumeric + underscore only
         },
         password: {
             type: String,
-            required: true,       // stored as bcrypt hash — never plaintext
+            required: true,           // stored as bcrypt hash via pre-save hook
         },
         dateOfBirth: {
             type: Date,
-            required: true,
+            required: true,           // age validation done server-side (13+)
         },
 
         // ---- Game stats ----
@@ -32,5 +43,23 @@ const userSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-const User = mongoose.model("User", userSchema);
+// ---- Pre-save hook: hash password before storing ----
+// (Atharva's pattern — avoids manually calling bcrypt.hash everywhere)
+UserSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next();
+    try {
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
+        next();
+    } catch (err) {
+        next(err);
+    }
+});
+
+// ---- Instance method: verify password ----
+UserSchema.methods.matchPassword = async function (enteredPassword) {
+    return bcrypt.compare(enteredPassword, this.password);
+};
+
+const User = mongoose.model("User", UserSchema);
 export default User;

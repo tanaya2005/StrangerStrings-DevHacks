@@ -104,10 +104,10 @@ export default function Leaderboard() {
                         {leaderboard.map((entry, i) => (
                             <div
                                 key={entry._id}
-                                className={`lb-row ${entry.email === useStore.getState().user?.email ? "self" : ""}`}
+                                className={`lb-row ${entry.username === useStore.getState().user?.username ? "self" : ""}`}
                             >
                                 <span className="lb-row-rank">{i + 1}</span>
-                                <span className="lb-row-name">{entry.email}</span>
+                                <span className="lb-row-name">{entry.username}</span>
                                 <span className="lb-row-trophies">🏆 {entry.trophies}</span>
                                 <span className="lb-row-wins">🎮 {entry.wins}W</span>
                             </div>
