@@ -46,7 +46,7 @@ function useKeyboard() {
     return keyMap;
 }
 
-export default function Player({
+const Player = React.forwardRef(({
     emitMove,
     emitFell,
     emitWorldTransition,
@@ -57,7 +57,7 @@ export default function Player({
     portals = [],
     onPortalTouch = null,
     onLavaTouch = null,      // Honeycomb: called when player hits lava floor
-}) {
+}, ref) => {
     const playerRef = useRef();
     const keys = useKeyboard();
     const { camera } = useThree();
@@ -76,16 +76,28 @@ export default function Player({
     }, [scene]);
 
     const velocityY = useRef(0);
+    const velocityXZ = useRef(new THREE.Vector3(0, 0, 0));
     const isGrounded = useRef(true);
+    const onIce = useRef(false);
 
     const direction = useRef(new THREE.Vector3());
     const targetCameraPos = useRef(new THREE.Vector3());
     const cameraOffset = useRef(new THREE.Vector3(0, 4, 8));
     const lastEmitRef = useRef(0);
+    const controlMultiplier = useRef(1);
+
+    React.useImperativeHandle(ref, () => ({
+        mesh: playerRef.current,
+        get position() { return playerRef.current?.position; },
+        set controlMultiplier(v) { controlMultiplier.current = v; }
+    }));
 
     useFrame((_, delta) => {
         if (!playerRef.current) return;
         const pos = playerRef.current.position;
+
+        const multiplier = controlMultiplier.current;
+        controlMultiplier.current = 1; // Reset every frame
 
         // ---- 1. Movement ----
         direction.current.set(0, 0, 0);
@@ -93,16 +105,40 @@ export default function Player({
         if (keys.current.s || keys.current.arrowdown) direction.current.z += 1;
         if (keys.current.a || keys.current.arrowleft) direction.current.x -= 1;
         if (keys.current.d || keys.current.arrowright) direction.current.x += 1;
-        if (direction.current.lengthSq() > 0) direction.current.normalize();
+
+        if (direction.current.lengthSq() > 0) {
+            direction.current.normalize();
+            // Apply control multiplier (e.g., -1 for reverse controls)
+            direction.current.multiplyScalar(multiplier);
+        }
 
         // ---- 2. Crouch ----
         const isCrouching = keys.current.shift;
         const currentSpeed = isCrouching ? CROUCH_SPEED : MOVE_SPEED;
 
-        // Base scale is 1.2. Crouch scale is 0.6 (half of 1.2)
+        // ---- Ice Physics Mechanics ----
+        const damping = onIce.current ? 0.985 : 0.85; // High damping on snow, low on ice
+        const accel = onIce.current ? 4.0 : 15.0;     // Slower response on ice (slippery)
+
+        // Momentum Calculation
+        const targetVelX = direction.current.x * (currentSpeed * multiplier);
+        const targetVelZ = direction.current.z * (currentSpeed * multiplier);
+
+        velocityXZ.current.x = THREE.MathUtils.lerp(velocityXZ.current.x, targetVelX, accel * delta);
+        velocityXZ.current.z = THREE.MathUtils.lerp(velocityXZ.current.z, targetVelZ, accel * delta);
+
+        // Slow down when no input
+        if (direction.current.lengthSq() === 0) {
+            velocityXZ.current.multiplyScalar(damping);
+        }
+
+        // Apply scale transition
         const targetScaleY = isCrouching ? 0.6 : 1.2;
         playerRef.current.scale.y = THREE.MathUtils.lerp(playerRef.current.scale.y, targetScaleY, 15 * delta);
-        pos.addScaledVector(direction.current, currentSpeed * delta);
+
+        // Apply Horizontal movement
+        pos.x += velocityXZ.current.x * delta;
+        pos.z += velocityXZ.current.z * delta;
 
         // ---- Character Rotation ----
         // Rotates the model to vividly face the direction of its movement vector
@@ -123,6 +159,7 @@ export default function Player({
         // ---- 4. Platform collision (AABB) ----
         let hitPlatform = false;
         let snapY = null;
+        let onIceThisFrame = false;
 
         // Player size is normalized relative to scale 1.2
         const playerSize = { x: 1.2, y: 1.2 * (targetScaleY / 1.2), z: 1.2 };
@@ -149,6 +186,9 @@ export default function Player({
                 if (resolveY !== null) {
                     hitPlatform = true;
                     snapY = resolveY + playerSize.y / 2;
+
+                    if (plat.isSlippery) onIceThisFrame = true;
+
                     if (plat.type === 'moving' && plat.velocity) {
                         pos.x += plat.velocity.x * delta;
                         pos.y += plat.velocity.y * delta;
@@ -158,6 +198,8 @@ export default function Player({
                 }
             }
         }
+
+        onIce.current = onIceThisFrame;
 
         // ---- 4.1 Honeycomb tile collision ----
         if (!hitPlatform && tiles && tiles.length > 0) {
@@ -210,7 +252,9 @@ export default function Player({
             // Standard fall reset (other worlds)
             pos.set(...startPosition);
             velocityY.current = 0;
+            velocityXZ.current.set(0, 0, 0); // Clear momentum on fall
             isGrounded.current = true;
+            onIce.current = false;
             emitFell?.();
         }
 
@@ -243,4 +287,6 @@ export default function Player({
             </mesh>
         </group>
     );
-}
+});
+
+export default Player;

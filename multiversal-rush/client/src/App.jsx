@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";
 import Leaderboard from "./pages/Leaderboard";
+import WorldTest from "./pages/WorldTest";
 
 /** Read token from localStorage — called on every render */
 function isLoggedIn() {
@@ -80,6 +81,7 @@ export default function App() {
                         </PrivateRoute>
                     }
                 />
+                <Route path="/test/:worldId" element={<WorldTest />} />
 
                 {/* Catch-all */}
                 <Route path="*" element={<Navigate to="/" replace />} />

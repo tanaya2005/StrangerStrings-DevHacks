@@ -63,6 +63,18 @@ export default React.forwardRef(function PlayerCryo({
     platforms = [],
 }, ref) {
     const speedMultiplier = useRef(1.0);
+    // ---- Load Human/Panda Model ----
+    const { scene } = useGLTF('/models/red-panda/scene.gltf');
+
+    // Optimize model for FPS
+    useEffect(() => {
+        scene.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = false;
+                child.receiveShadow = false;
+            }
+        });
+    }, [scene]);
     const playerRef = useRef();
 
     // ---- Load Human/Panda Model ----

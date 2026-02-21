@@ -1,50 +1,74 @@
-import React, { useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import { aabbCollision } from "../../utils/collision";
+import React, { useRef, useState, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import { aabbCollision } from '../../utils/collision';
 
 /**
- * Snowball Obstacle Component
- * Oscillates horizontally and applies knockback to the player on collision.
+ * Snowball Projectile
+ * Fires from a Cannon and moves in its LOCAL forward direction.
  */
-export default function Snowball({ position, range = 4, speed = 1.5, playerRef }) {
+export default function Snowball({
+    id,
+    speed,
+    size,
+    playerRef,
+    onComplete
+}) {
     const meshRef = useRef();
-    const startX = position[0];
+    const [active, setActive] = useState(true);
 
-    useFrame((state) => {
-        if (!meshRef.current || !playerRef?.current) return;
-        const time = state.clock.getElapsedTime();
+    // Initial local direction is always UP (+Y) because our cannon barrel is a cylinder
+    // By being a child of the rotated Cannon group, +Y is the "target" direction.
+    useFrame((state, delta) => {
+        if (!active || !meshRef.current || !playerRef?.current) return;
 
-        // Horizontal ping-pong movement
-        meshRef.current.position.x = startX + Math.sin(time * speed) * range;
+        // Move along local Y axis (forward from cannon mouth)
+        meshRef.current.position.y += speed * delta;
 
-        // Spin effect
-        meshRef.current.rotation.z -= 0.05;
+        // Rotation effect
+        meshRef.current.rotation.x += delta * 4;
+        meshRef.current.rotation.z += delta * 3;
 
-        // Collision Check (AABB)
+        // Collision Check: We need WORLD position for global AABB collision
+        const worldPos = new THREE.Vector3();
+        meshRef.current.getWorldPosition(worldPos);
+
         const playerPos = playerRef.current.position;
         const collided = aabbCollision(
             { x: playerPos.x, y: playerPos.y, z: playerPos.z },
-            { w: 0.5, h: 0.5, d: 0.5 }, // player size
-            { x: meshRef.current.position.x, y: meshRef.current.position.y, z: meshRef.current.position.z },
-            { w: 1.0, h: 1.0, d: 1.0 }  // snowball size
+            { w: 0.6, h: 0.6, d: 0.6 },
+            { x: worldPos.x, y: worldPos.y, z: worldPos.z },
+            { w: size / 2, h: size / 2, d: size / 2 }
         );
 
         if (collided) {
-            // Apply physical impulse (knockback)
-            playerPos.z += 0.5;
-            playerPos.y += 0.2;
-            console.log("❄️ Snowball hit!");
+            // Apply knockback
+            playerRef.current.position.z += 1.8;
+            playerRef.current.position.y += 0.6;
+            if (playerRef.current.velocityXZ) {
+                playerRef.current.velocityXZ.multiplyScalar(0.2);
+            }
+            setActive(false);
+            console.log("❄️ Target hit! Cannon snowball collided.");
+        }
+
+        // Off-map reset (local distance)
+        if (meshRef.current.position.y > 60) {
+            setActive(false);
+            onComplete?.(id);
         }
     });
 
+    if (!active) return null;
+
     return (
-        <mesh ref={meshRef} position={position} castShadow>
-            <sphereGeometry args={[1, 16, 16]} />
+        <mesh ref={meshRef} position={[0, 1.5, 0]} castShadow>
+            <sphereGeometry args={[size, 16, 16]} />
             <meshStandardMaterial
                 color="#ffffff"
-                emissive="#b0e0ff"
-                emissiveIntensity={0.3}
-                roughness={0.2}
+                emissive="#90caf9"
+                emissiveIntensity={0.6}
+                roughness={0}
             />
         </mesh>
     );

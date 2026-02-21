@@ -48,7 +48,81 @@ function createRoom(roomId) {
         startTime: null,
         finishedOrder: [],       // socket IDs in finish order
         chatMessages: [],        // waiting-room chat history
+        windDirection: 1,        // 1 = right, -1 = left (for Wind Tunnel Bridge)
+        windInterval: null,      // store interval so it can be cleared
+        // ── Avalanche state ──
+        avalancheActive: false,
+        avalancheZ: 60,          // current world Z of wave front
+        avalancheSpeed: 8,
+        avalancheInterval: null,
     };
+}
+
+/** Start wind direction broadcaster for a room */
+function startWindBroadcast(io, roomId, room) {
+    if (room.windInterval) clearInterval(room.windInterval);
+
+    room.windInterval = setInterval(() => {
+        if (room.gameState !== "playing") {
+            clearInterval(room.windInterval);
+            return;
+        }
+        room.windDirection *= -1;
+        io.to(roomId).emit("windDirection", {
+            direction: room.windDirection,
+            timestamp: Date.now()
+        });
+        console.log(`[Room ${roomId}] Wind direction: ${room.windDirection > 0 ? "RIGHT" : "LEFT"}`);
+    }, 3000);
+}
+
+/** Trigger the avalanche for a room (called once when first player hits checkpoint) */
+function startAvalanche(io, roomId, room) {
+    if (room.avalancheActive) return; // Already running
+    room.avalancheActive = true;
+    room.avalancheZ = 60;
+    room.avalancheSpeed = 8;
+
+    // Tell all clients to start the wave
+    io.to(roomId).emit('avalancheStart');
+    console.log(`[Room ${roomId}] 🏔️ Avalanche triggered!`);
+
+    const ACCEL = 0.8;
+    const MAX_SPD = 26;
+    const TICK_MS = 1000; // sync interval
+
+    room.avalancheInterval = setInterval(() => {
+        if (!room.avalancheActive || room.gameState !== 'playing') {
+            stopAvalanche(io, roomId, room);
+            return;
+        }
+
+        // Advance server-side position
+        room.avalancheSpeed = Math.min(room.avalancheSpeed + ACCEL, MAX_SPD);
+        room.avalancheZ -= room.avalancheSpeed;
+
+        // Broadcast authoritative sync
+        io.to(roomId).emit('avalancheSync', {
+            z: room.avalancheZ,
+            spd: room.avalancheSpeed,
+        });
+
+        // Past finish — end
+        if (room.avalancheZ < -230) {
+            stopAvalanche(io, roomId, room);
+        }
+    }, TICK_MS);
+}
+
+/** Stop and clean up avalanche for a room */
+function stopAvalanche(io, roomId, room) {
+    room.avalancheActive = false;
+    if (room.avalancheInterval) {
+        clearInterval(room.avalancheInterval);
+        room.avalancheInterval = null;
+    }
+    io.to(roomId).emit('avalancheEnd');
+    console.log(`[Room ${roomId}] 🏔️ Avalanche ended.`);
 }
 
 /** Return a safe, serialisable snapshot of all players in a room */
@@ -334,6 +408,9 @@ export function registerGameSocket(io) {
                         players: getPlayerList(room),
                     });
                     console.log(`[Room ${roomId}] Game started!`);
+
+                    // Start synced wind direction for Wind Tunnel Bridge
+                    startWindBroadcast(io, roomId, room);
                 }, COUNTDOWN_SECONDS * 1000);
             }
         });
@@ -356,6 +433,16 @@ export function registerGameSocket(io) {
             player.position = position;
             player.rotation = rotation;
             player.world = world;
+
+            // ── Avalanche Checkpoint: first player to reach Phase 4 (Ice Slide entry) ──
+            // Z < -220 = start of Ice Slide / Frozen Frenzy Arena Phase 4
+            if (
+                room.gameState === 'playing' &&
+                !room.avalancheActive &&
+                position && position.z < -220
+            ) {
+                startAvalanche(io, roomId, room);
+            }
 
             // Broadcast to everyone EXCEPT the sender
             socket.to(roomId).emit("playerMoved", {
@@ -605,6 +692,8 @@ export function registerGameSocket(io) {
 
             // Clean up empty rooms to save memory
             if (playerCount(room) === 0) {
+                if (room.windInterval) clearInterval(room.windInterval);
+                if (room.avalancheInterval) clearInterval(room.avalancheInterval);
                 delete rooms[roomId];
                 console.log(`[Room ${roomId}] Deleted (empty)`);
             }
