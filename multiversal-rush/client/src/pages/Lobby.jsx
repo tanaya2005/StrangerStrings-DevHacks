@@ -22,7 +22,10 @@ export default function Lobby() {
 
     // ---- Zustand state ----
     const playerName = useStore((s) => s.playerName);
+    const logout = useStore((s) => s.logout);
+    const setPlayerName = useStore((s) => s.setPlayerName);
     const setPlayerId = useStore((s) => s.setPlayerId);
+    const roomId = useStore((s) => s.roomId);
     const setRoomId = useStore((s) => s.setRoomId);
     const setPlayers = useStore((s) => s.setPlayers);
     const setGameState = useStore((s) => s.setGameState);
@@ -44,6 +47,21 @@ export default function Lobby() {
 
     const chatEndRef = useRef(null);
     const mySocketId = socket.id;
+
+    // ---- Load username from localStorage on mount ----
+    useEffect(() => {
+        const storedUser = localStorage.getItem("mr_user");
+        if (storedUser) {
+            try {
+                const user = JSON.parse(storedUser);
+                if (user.username && !playerName) {
+                    setPlayerName(user.username);
+                }
+            } catch (err) {
+                console.error("Failed to parse stored user:", err);
+            }
+        }
+    }, [playerName, setPlayerName]);
 
     // ---- Auto-scroll chat ----
     useEffect(() => {
@@ -127,7 +145,27 @@ export default function Lobby() {
 
     // ---- Handlers ----
 
-    function handleJoin() {
+    function generateRoomCode() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return code;
+    }
+
+    function handleCreateRoom() {
+        if (!playerName) { setError("Go back and set your name first"); return; }
+        const newRoomCode = generateRoomCode();
+        setInputRoom(newRoomCode);
+        setError("");
+        socket.emit("joinRoom", {
+            roomId: newRoomCode,
+            playerName,
+        });
+    }
+
+    function handleJoinRoom() {
         if (!inputRoom.trim()) { setError("Enter a room code"); return; }
         if (!playerName) { setError("Go back and set your name first"); return; }
         setError("");
@@ -149,6 +187,12 @@ export default function Lobby() {
         setChatInput("");
     }
 
+    function handleLogout() {
+        if (socket.connected) socket.disconnect();
+        logout();
+        navigate("/login");
+    }
+
     // ---- Render ----
     const playerList = Object.values(players);
 
@@ -158,10 +202,32 @@ export default function Lobby() {
 
             <div className="lobby-container">
                 {/* ---- Header ---- */}
-                <h1 className="lobby-title">
-                    🌌 <span>Multiversal Rush</span>
-                </h1>
-                <p className="lobby-subtitle">Waiting Room</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div>
+                        <h1 className="lobby-title">
+                            🌌 <span>Multiversal Rush</span>
+                        </h1>
+                        <p className="lobby-subtitle">Waiting Room</p>
+                    </div>
+                    <button 
+                        onClick={handleLogout}
+                        style={{
+                            background: 'rgba(255,77,109,0.2)',
+                            border: '1px solid rgba(255,77,109,0.5)',
+                            color: '#ff4d6d',
+                            padding: '8px 16px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => e.target.style.background = 'rgba(255,77,109,0.3)'}
+                        onMouseOut={(e) => e.target.style.background = 'rgba(255,77,109,0.2)'}
+                    >
+                        Logout
+                    </button>
+                </div>
 
                 {/* ---- Join Panel ---- */}
                 {!joined ? (
@@ -173,14 +239,25 @@ export default function Lobby() {
                                 placeholder="Room code (e.g. RUSH1)"
                                 value={inputRoom}
                                 onChange={(e) => setInputRoom(e.target.value.toUpperCase())}
-                                onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+                                onKeyDown={(e) => e.key === "Enter" && handleJoinRoom()}
                                 maxLength={10}
                                 id="room-code-input"
                             />
-                            <button className="btn-join" onClick={handleJoin} id="btn-join-room">
-                                Join / Create
+                            <button className="btn-join" onClick={handleJoinRoom} id="btn-join-room">
+                                Join Room
                             </button>
                         </div>
+                        <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                            <span style={{ color: '#888', fontSize: '0.9rem' }}>or</span>
+                        </div>
+                        <button 
+                            className="btn-join" 
+                            onClick={handleCreateRoom} 
+                            id="btn-create-room"
+                            style={{ width: '100%', marginTop: '10px', background: 'rgba(0,255,200,0.15)' }}
+                        >
+                            Create New Room
+                        </button>
                         {error && <p className="lobby-error">{error}</p>}
                     </div>
                 ) : (
@@ -198,6 +275,32 @@ export default function Lobby() {
                         )}
 
                         <div className="room-layout">
+
+                            {/* === Room ID Display === */}
+                            <div style={{
+                                background: 'rgba(0,255,200,0.1)',
+                                border: '2px solid rgba(0,255,200,0.3)',
+                                borderRadius: '12px',
+                                padding: '15px',
+                                marginBottom: '20px',
+                                textAlign: 'center'
+                            }}>
+                                <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                                    Room Code
+                                </div>
+                                <div style={{
+                                    fontSize: '1.8rem',
+                                    fontWeight: 'bold',
+                                    color: '#00ffe0',
+                                    letterSpacing: '0.3em',
+                                    fontFamily: 'monospace'
+                                }}>
+                                    {roomId || inputRoom}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '5px' }}>
+                                    Share this code with friends to join
+                                </div>
+                            </div>
 
                             {/* === Players sidebar === */}
                             <div className="players-sidebar">

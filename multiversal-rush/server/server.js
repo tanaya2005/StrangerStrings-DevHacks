@@ -22,7 +22,10 @@ const app = express();
 app.use(express.json());
 app.use(
     cors({
-        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        origin: [
+            process.env.CLIENT_URL || "http://localhost:5173",
+            "http://localhost:5174"
+        ],
         methods: ["GET", "POST"],
         credentials: true,
     })
@@ -41,11 +44,15 @@ const httpServer = http.createServer(app);
 // ---- Socket.io Server ----
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        origin: [
+            process.env.CLIENT_URL || "http://localhost:5173",
+            "http://localhost:5174"
+        ],
         methods: ["GET", "POST"],
         credentials: true,
     },
-    transports: ["websocket"],
+    pingTimeout: 60000,
+    pingInterval: 25000,
 });
 
 // ---- Register all game socket logic ----
