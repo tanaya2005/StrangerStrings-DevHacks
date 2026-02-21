@@ -2,6 +2,7 @@ services:
   - type: web
     name: multiversal-rush-server
     env: node
+    rootDir: multiversal-rush/server
     buildCommand: npm install
     startCommand: npm start
     envVars:
