@@ -327,8 +327,30 @@ export function registerGameSocket(io) {
         socket.on("playerFell", () => {
             const roomId = socket.data.roomId;
             if (!roomId || !rooms[roomId]) return;
-
             socket.to(roomId).emit("playerRespawned", { playerId: socket.id });
+        });
+
+        // --------------------------------------------------------
+        //  playerEliminated
+        //  Fired when client falls into Honeycomb lava (permanent).
+        //  Client sends: {} — server marks them eliminated.
+        // --------------------------------------------------------
+        socket.on("playerEliminated", () => {
+            const roomId = socket.data.roomId;
+            if (!roomId || !rooms[roomId]) return;
+
+            const room = rooms[roomId];
+            const player = room.players[socket.id];
+            if (!player || player.eliminated || player.finished) return;
+
+            player.eliminated = true;
+            console.log(`[Room ${roomId}] ${player.name} eliminated (lava)`);
+
+            // Tell everyone
+            io.to(roomId).emit("playerEliminated", { eliminatedId: socket.id });
+
+            // Check if game should end
+            checkElimination(io, roomId, room);
         });
 
         // --------------------------------------------------------
@@ -389,7 +411,7 @@ export function registerGameSocket(io) {
 
             if (player) {
                 console.log(`[Room ${roomId}] ${player.name} disconnected`);
-                
+
                 // Notify remaining players with player name
                 io.to(roomId).emit("playerLeft", {
                     playerId: socket.id,

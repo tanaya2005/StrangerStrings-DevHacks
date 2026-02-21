@@ -1,9 +1,10 @@
 // ============================================================
 //  components/Worlds/Honeycomb.jsx
 //  components/Worlds/Honeycomb.jsx — Honeycomb Fall World
-//  Atharva (Task 1/3): hex grid that drops tiles on contact
+//  Atharva: hex grid that drops tiles on contact
+//  Varun: fall below lava = ELIMINATED (not respawn)
 // ============================================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Player from '../Player/Player';
 
 function HexTile({ position, status }) {
@@ -20,8 +21,10 @@ function HexTile({ position, status }) {
     );
 }
 
-export default function Honeycomb({ emitMove, emitWorldTransition, emitFell }) {
+export default function Honeycomb({ emitMove, emitWorldTransition, emitFell, emitEliminated }) {
     const [tiles, setTiles] = useState([]);
+    const [eliminated, setEliminated] = useState(false);
+    const eliminatedRef = useRef(false);  // prevent double-fire
 
     useEffect(() => {
         const generatedTiles = [];
@@ -101,15 +104,24 @@ export default function Honeycomb({ emitMove, emitWorldTransition, emitFell }) {
                 <HexTile key={t.id} position={[t.x, t.y, t.z]} status={t.status} />
             ))}
 
-            <Player
-                emitMove={emitMove}
-                emitFell={emitFell}
-                emitWorldTransition={emitWorldTransition}
-                world={3}
-                startPosition={[0, 12, 0]}
-                tiles={tiles}
-                onTileTouch={handleTileTouch}
-            />
+            {/* Stop rendering player once eliminated */}
+            {!eliminated && (
+                <Player
+                    emitMove={emitMove}
+                    emitFell={emitFell}
+                    emitWorldTransition={emitWorldTransition}
+                    world={3}
+                    startPosition={[0, 12, 0]}
+                    tiles={tiles}
+                    onTileTouch={handleTileTouch}
+                    onLavaTouch={() => {
+                        if (eliminatedRef.current) return;
+                        eliminatedRef.current = true;
+                        setEliminated(true);
+                        emitEliminated?.();
+                    }}
+                />
+            )}
 
             {/* Lava floor */}
             <mesh position={[0, -20, 0]} rotation={[-Math.PI / 2, 0, 0]}>
