@@ -46,6 +46,7 @@ export default function HUD({ emitMethods, currentLevel }) {
         hub: "🌌 Hub World",
         cyberverse: "🌐 Cyberverse",
         honeycomb: "🍯 Honeycomb",
+        cryovoid: "❄️ Cryo Void",
         world2: "🌋 Lava Hell",
     }[currentLevel] || "🌌 Hub World";
 

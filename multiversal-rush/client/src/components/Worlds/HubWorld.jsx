@@ -10,10 +10,12 @@ import Platform from '../Obstacles/Platform';
 export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
     const cyberPortalRef = useRef(null);
     const honeyPortalRef = useRef(null);
+    const cryoPortalRef = useRef(null);
 
     useFrame((_, delta) => {
         if (cyberPortalRef.current) cyberPortalRef.current.rotation.y += delta;
         if (honeyPortalRef.current) honeyPortalRef.current.rotation.y += delta;
+        if (cryoPortalRef.current) cryoPortalRef.current.rotation.y += delta;
     });
 
     const portals = [
@@ -26,6 +28,11 @@ export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
             id: 'honeycomb',
             min: { x: 6, y: 0, z: -14 },
             max: { x: 14, y: 7, z: -6 }
+        },
+        {
+            id: 'cryovoid',
+            min: { x: -4, y: 0, z: 6 },
+            max: { x: 4, y: 7, z: 14 }
         }
     ];
 
@@ -46,6 +53,10 @@ export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
             <Platform position={[5, -0.5, -5]} scale={[5, 1, 5]} type="static" color="#333333" />
             <Platform position={[10, -0.5, -10]} scale={[8, 1, 8]} type="static" color="#111111" />
 
+            {/* Back bridge → Cryo Void */}
+            <Platform position={[0, -0.5, 5]} scale={[5, 1, 5]} type="static" color="#333333" />
+            <Platform position={[0, -0.5, 10]} scale={[8, 1, 8]} type="static" color="#111111" />
+
             {/* Cyberverse Portal (blue) */}
             <group position={[-10, 2, -10]}>
                 <mesh ref={cyberPortalRef}>
@@ -59,6 +70,14 @@ export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
                 <mesh ref={honeyPortalRef}>
                     <torusGeometry args={[1.5, 0.2, 16, 60]} />
                     <meshStandardMaterial color="#ffaa00" emissive="#ffaa00" emissiveIntensity={1.5} />
+                </mesh>
+            </group>
+
+            {/* Cryo Void Portal (white-blue) */}
+            <group position={[0, 2, 10]}>
+                <mesh ref={cryoPortalRef}>
+                    <torusGeometry args={[1.5, 0.2, 16, 60]} />
+                    <meshStandardMaterial color="#aaddff" emissive="#ffffff" emissiveIntensity={1.5} />
                 </mesh>
             </group>
 

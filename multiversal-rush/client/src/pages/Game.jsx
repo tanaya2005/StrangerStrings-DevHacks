@@ -14,6 +14,7 @@ import World1 from "../components/Worlds/World1";
 import World2 from "../components/Worlds/World2";
 import Honeycomb from "../components/Worlds/Honeycomb";
 import HubWorld from "../components/Worlds/HubWorld";
+import WorldCryoVoid from "../components/Worlds/WorldCryoVoid";
 
 export default function Game() {
     const navigate = useNavigate();
@@ -138,12 +139,22 @@ export default function Game() {
                     <World2 emitMove={emitMove} emitWorldTransition={() => { }} emitFinished={emitFinished} emitFell={emitFell} />
                 )}
 
+                {/* World 3 — Honeycomb Fall */}
                 {currentLevel === "honeycomb" && (
                     <Honeycomb
                         emitMove={emitMove}
                         emitWorldTransition={emitWorldTransition}
                         emitFell={emitFell}
                         emitEliminated={emitEliminated}
+                    />
+                )}
+
+                {/* World 4 — Cryo Void */}
+                {currentLevel === "cryovoid" && (
+                    <WorldCryoVoid
+                        emitMove={emitMove}
+                        emitFinished={emitFinished}
+                        emitFell={emitFell}
                     />
                 )}
             </Canvas>
