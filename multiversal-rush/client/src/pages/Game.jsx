@@ -83,9 +83,9 @@ export default function Game() {
             setFinishedOrder(finishedOrder);
         });
 
-        socket.on("playerLeft", ({ players }) => { 
+        socket.on("playerLeft", ({ players }) => {
             console.log("[Game] playerLeft");
-            if (players) setPlayers(players); 
+            if (players) setPlayers(players);
         });
 
         socket.on("playerRespawned", ({ playerId }) => {
@@ -132,7 +132,10 @@ export default function Game() {
         // Update world tracking based on portal
         if (portalId === 'cyberverse') setCurrentWorld(1);
         else if (portalId === 'honeycomb') setCurrentWorld(3);
-        else if (portalId === 'cryovoid') setCurrentWorld(4);
+        // CryoVoid: Must match world={3} in PlayerCryo.jsx
+        // Both Honeycomb and CryoVoid use world=3 — that's fine,
+        // they never render simultaneously so no conflict
+        else if (portalId === 'cryovoid') setCurrentWorld(3);
         else if (portalId === 'hub') setCurrentWorld(0);
     }, [setCurrentWorld]);
 
