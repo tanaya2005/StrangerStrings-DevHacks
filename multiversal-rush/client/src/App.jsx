@@ -6,6 +6,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
+import Home from "./pages/Home";
 import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";
 import Leaderboard from "./pages/Leaderboard";
@@ -25,10 +26,10 @@ function PrivateRoute({ children }) {
 }
 
 /**
- * PublicRoute — if already logged in, skip Login and go to Lobby.
+ * PublicRoute — if already logged in, skip Login and go to Home.
  */
 function PublicRoute({ children }) {
-    if (isLoggedIn()) return <Navigate to="/lobby" replace />;
+    if (isLoggedIn()) return <Navigate to="/home" replace />;
     return children;
 }
 
@@ -36,7 +37,7 @@ export default function App() {
     return (
         <BrowserRouter>
             <Routes>
-                {/* Login — redirect to /lobby if already authenticated */}
+                {/* Login — redirect to /home if already authenticated */}
                 <Route
                     path="/"
                     element={
@@ -47,6 +48,14 @@ export default function App() {
                 />
 
                 {/* Protected pages */}
+                <Route
+                    path="/home"
+                    element={
+                        <PrivateRoute>
+                            <Home />
+                        </PrivateRoute>
+                    }
+                />
                 <Route
                     path="/lobby"
                     element={

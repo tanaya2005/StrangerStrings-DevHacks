@@ -45,7 +45,7 @@ const useStore = create((set, get) => ({
     setStartTime: (t) => set({ startTime: t }),
 
     // ---- World ----
-    currentWorld: 1,
+    currentWorld: 0,  // Start in hub (world 0)
     setCurrentWorld: (w) => set({ currentWorld: w }),
 
     // ---- Self position ----
@@ -59,6 +59,12 @@ const useStore = create((set, get) => ({
     myFinishResult: null,
     setFinishedOrder: (order) => set({ finishedOrder: order }),
     setMyFinishResult: (result) => set({ myFinishResult: result }),
+
+    // ---- Match Results ----
+    matchResults: [],
+    showMatchResults: false,
+    setMatchResults: (results) => set({ matchResults: results, showMatchResults: true }),
+    hideMatchResults: () => set({ showMatchResults: false, matchResults: [] }),
 
     // ---- Chat ----
     chatMessages: [],

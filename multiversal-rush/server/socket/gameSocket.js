@@ -3,6 +3,8 @@
 //  Member 2 (Multiplayer / Socket.io)
 // ============================================================
 
+import User from "../models/User.js";
+
 /**
  * In-memory room store.
  * Structure:
@@ -27,6 +29,14 @@ const rooms = {};
 const MAX_PLAYERS_PER_ROOM = 5;   // Hard cap per room
 const MOVE_THROTTLE_MS = 50;       // Min ms between move broadcasts
 const COUNTDOWN_SECONDS = 3;       // Countdown before race starts
+const MATCH_RESULTS_DURATION = 10000; // 10 seconds
+
+// Trophy distribution
+const TROPHY_REWARDS = {
+    1: 15,  // 1st place
+    2: 10,  // 2nd place
+    3: 5,   // 3rd place
+};
 
 // ---- Helpers ----
 
@@ -52,10 +62,111 @@ function playerCount(room) {
 }
 
 /**
+ * Distribute trophies and update database after match ends
+ */
+async function distributeTrophies(io, roomId, room) {
+    const results = [];
+    
+    // Process each player in finish order
+    for (let i = 0; i < room.finishedOrder.length; i++) {
+        const socketId = room.finishedOrder[i];
+        const player = room.players[socketId];
+        if (!player) continue;
+
+        const place = i + 1;
+        const trophiesEarned = TROPHY_REWARDS[place] || 0;
+        const isWinner = place === 1;
+
+        try {
+            // Update user in database
+            const updatedUser = await User.findOneAndUpdate(
+                { username: player.name },
+                {
+                    $inc: {
+                        trophies: trophiesEarned,
+                        gamesPlayed: 1,
+                        ...(isWinner ? { wins: 1 } : {}),
+                    },
+                },
+                { new: true }
+            );
+
+            if (updatedUser) {
+                results.push({
+                    username: player.name,
+                    place,
+                    trophiesEarned,
+                    totalTrophies: updatedUser.trophies,
+                    wins: updatedUser.wins,
+                    gamesPlayed: updatedUser.gamesPlayed,
+                });
+
+                console.log(
+                    `[Room ${roomId}] ${player.name} - Place ${place} - Earned ${trophiesEarned} trophies - Total: ${updatedUser.trophies}`
+                );
+            }
+        } catch (err) {
+            console.error(`[Trophy Distribution] Error updating ${player.name}:`, err);
+            // Still add to results even if DB update fails
+            results.push({
+                username: player.name,
+                place,
+                trophiesEarned,
+                totalTrophies: 0,
+                wins: 0,
+                gamesPlayed: 0,
+            });
+        }
+    }
+
+    // Also increment gamesPlayed for eliminated players (0 trophies)
+    for (const socketId in room.players) {
+        const player = room.players[socketId];
+        if (player.eliminated && !room.finishedOrder.includes(socketId)) {
+            try {
+                await User.findOneAndUpdate(
+                    { username: player.name },
+                    { $inc: { gamesPlayed: 1 } },
+                    { new: true }
+                );
+                
+                results.push({
+                    username: player.name,
+                    place: 0, // Eliminated
+                    trophiesEarned: 0,
+                    totalTrophies: 0,
+                    wins: 0,
+                    gamesPlayed: 0,
+                });
+            } catch (err) {
+                console.error(`[Trophy Distribution] Error updating eliminated player ${player.name}:`, err);
+            }
+        }
+    }
+
+    // Emit match results to all players
+    io.to(roomId).emit("matchResults", { results });
+
+    // Fetch and broadcast updated leaderboard
+    try {
+        const leaderboard = await User.find()
+            .sort({ trophies: -1 })
+            .limit(20)
+            .select("username trophies wins gamesPlayed");
+        
+        io.to(roomId).emit("leaderboardUpdate", { leaderboard });
+    } catch (err) {
+        console.error(`[Leaderboard Update] Error:`, err);
+    }
+
+    return results;
+}
+
+/**
  * After every elimination / finish check, see if only 1 player is left
  * un-eliminated and un-finished → they become the winner.
  */
-function checkElimination(io, roomId, room) {
+async function checkElimination(io, roomId, room) {
     if (room.gameState !== "playing") return;
 
     const activePlayers = Object.values(room.players).filter(
@@ -78,26 +189,30 @@ function checkElimination(io, roomId, room) {
             finishedOrder: room.finishedOrder,
         });
 
-        io.to(roomId).emit("gameFinished", {
-            finishedOrder: room.finishedOrder,
-            eliminatedPlayers: Object.values(room.players)
-                .filter((p) => p.eliminated)
-                .map((p) => p.id),
-        });
-
         console.log(`[Room ${roomId}] Game finished. Winner: ${winner.name}`);
+        
+        // Distribute trophies and show match results
+        await distributeTrophies(io, roomId, room);
+        
+        // After 10 seconds, reset room
+        setTimeout(() => {
+            io.to(roomId).emit("returnToLobby");
+        }, MATCH_RESULTS_DURATION);
     }
 
     // If no active players (all eliminated), end game
     if (activePlayers.length === 0) {
         room.gameState = "finished";
-        io.to(roomId).emit("gameFinished", {
-            finishedOrder: room.finishedOrder,
-            eliminatedPlayers: Object.values(room.players)
-                .filter((p) => p.eliminated)
-                .map((p) => p.id),
-        });
+        
         console.log(`[Room ${roomId}] Game finished. All players eliminated.`);
+        
+        // Distribute trophies even if all eliminated
+        await distributeTrophies(io, roomId, room);
+        
+        // After 10 seconds, reset room
+        setTimeout(() => {
+            io.to(roomId).emit("returnToLobby");
+        }, MATCH_RESULTS_DURATION);
     }
 }
 
@@ -145,7 +260,7 @@ export function registerGameSocket(io) {
                     name: playerName || `Player_${socket.id.slice(0, 5)}`,
                     position: { x: 0, y: 1, z: 0 },   // spawn position
                     rotation: { y: 0 },
-                    world: 1,          // starts in World 1
+                    world: 0,          // starts in hub (world 0)
                     finished: false,
                     eliminated: false,
                     finishTime: null,
@@ -280,7 +395,7 @@ export function registerGameSocket(io) {
         //  Fired when a player crosses the final portal in World 2.
         //  Client sends: {} (no payload needed)
         // --------------------------------------------------------
-        socket.on("playerFinished", () => {
+        socket.on("playerFinished", async () => {
             const roomId = socket.data.roomId;
             if (!roomId || !rooms[roomId]) return;
 
@@ -315,8 +430,22 @@ export function registerGameSocket(io) {
                 finishedOrder: room.finishedOrder,
             });
 
-            // Trigger elimination check
-            checkElimination(io, roomId, room);
+            // Check if all non-eliminated players have finished
+            const activePlayers = Object.values(room.players).filter(p => !p.eliminated);
+            const allFinished = activePlayers.every(p => p.finished);
+
+            if (allFinished) {
+                room.gameState = "finished";
+                console.log(`[Room ${roomId}] All players finished!`);
+                
+                // Distribute trophies and show match results
+                await distributeTrophies(io, roomId, room);
+                
+                // After 10 seconds, signal return to lobby
+                setTimeout(() => {
+                    io.to(roomId).emit("returnToLobby");
+                }, MATCH_RESULTS_DURATION);
+            }
         });
 
         // --------------------------------------------------------
@@ -335,7 +464,7 @@ export function registerGameSocket(io) {
         //  Fired when client falls into Honeycomb lava (permanent).
         //  Client sends: {} — server marks them eliminated.
         // --------------------------------------------------------
-        socket.on("playerEliminated", () => {
+        socket.on("playerEliminated", async () => {
             const roomId = socket.data.roomId;
             if (!roomId || !rooms[roomId]) return;
 
@@ -349,8 +478,49 @@ export function registerGameSocket(io) {
             // Tell everyone
             io.to(roomId).emit("playerEliminated", { eliminatedId: socket.id });
 
-            // Check if game should end
-            checkElimination(io, roomId, room);
+            // Check if only one player remains (winner)
+            const activePlayers = Object.values(room.players).filter(
+                (p) => !p.finished && !p.eliminated
+            );
+
+            if (activePlayers.length === 1) {
+                // Last player standing wins
+                const winner = activePlayers[0];
+                winner.finished = true;
+                winner.finishTime = Date.now() - room.startTime;
+                room.finishedOrder.push(winner.id);
+                room.gameState = "finished";
+
+                io.to(roomId).emit("playerFinishedRace", {
+                    playerId: winner.id,
+                    playerName: winner.name,
+                    position: room.finishedOrder.length,
+                    finishTime: winner.finishTime,
+                    finishedOrder: room.finishedOrder,
+                });
+
+                console.log(`[Room ${roomId}] ${winner.name} wins (last player standing)!`);
+                
+                // Distribute trophies and show match results
+                await distributeTrophies(io, roomId, room);
+                
+                // After 10 seconds, signal return to lobby
+                setTimeout(() => {
+                    io.to(roomId).emit("returnToLobby");
+                }, MATCH_RESULTS_DURATION);
+            } else if (activePlayers.length === 0) {
+                // All eliminated
+                room.gameState = "finished";
+                console.log(`[Room ${roomId}] All players eliminated!`);
+                
+                // Distribute trophies (all get 0)
+                await distributeTrophies(io, roomId, room);
+                
+                // After 10 seconds, signal return to lobby
+                setTimeout(() => {
+                    io.to(roomId).emit("returnToLobby");
+                }, MATCH_RESULTS_DURATION);
+            }
         });
 
         // --------------------------------------------------------
@@ -422,11 +592,6 @@ export function registerGameSocket(io) {
 
             // Remove player from room
             delete room.players[socket.id];
-
-            // If game is in progress and active players drop too low, handle it
-            if (room.gameState === "playing") {
-                checkElimination(io, roomId, room);
-            }
 
             // If game is in countdown and falls below 2, cancel countdown
             if (room.gameState === "countdown" && playerCount(room) < 2) {

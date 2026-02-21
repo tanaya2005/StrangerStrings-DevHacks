@@ -118,7 +118,7 @@ export default function Login() {
             } else {
                 handleAuthSuccess(data);
                 // Navigate immediately — token is in localStorage now
-                navigate("/lobby", { replace: true });
+                navigate("/home", { replace: true });
             }
         } catch (err) {
             setError("Cannot reach server. Is the backend running?");
@@ -153,7 +153,7 @@ export default function Login() {
             } else {
                 handleAuthSuccess(data);
                 // Navigate immediately — token is in localStorage now
-                navigate("/lobby", { replace: true });
+                navigate("/home", { replace: true });
             }
         } catch (err) {
             setError("Cannot reach server. Is the backend running?");

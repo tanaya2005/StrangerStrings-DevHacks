@@ -101,15 +101,23 @@ export default function Leaderboard() {
                         <p className="lb-empty">No data yet – be the first to win!</p>
                     )}
                     <div className="lb-global-table">
+                        <div className="lb-table-header">
+                            <span className="lb-col-rank">Rank</span>
+                            <span className="lb-col-name">Player</span>
+                            <span className="lb-col-trophies">Trophies</span>
+                            <span className="lb-col-wins">Wins</span>
+                            <span className="lb-col-games">Games</span>
+                        </div>
                         {leaderboard.map((entry, i) => (
                             <div
                                 key={entry._id}
                                 className={`lb-row ${entry.username === useStore.getState().user?.username ? "self" : ""}`}
                             >
-                                <span className="lb-row-rank">{i + 1}</span>
-                                <span className="lb-row-name">{entry.username}</span>
-                                <span className="lb-row-trophies">🏆 {entry.trophies}</span>
-                                <span className="lb-row-wins">🎮 {entry.wins}W</span>
+                                <span className="lb-col-rank">{i + 1}</span>
+                                <span className="lb-col-name">{entry.username}</span>
+                                <span className="lb-col-trophies">🏆 {entry.trophies}</span>
+                                <span className="lb-col-wins">{entry.wins}</span>
+                                <span className="lb-col-games">{entry.gamesPlayed}</span>
                             </div>
                         ))}
                     </div>

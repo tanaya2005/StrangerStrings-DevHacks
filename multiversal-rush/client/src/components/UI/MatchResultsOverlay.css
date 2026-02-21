@@ -1,0 +1,219 @@
+/* ============================================================
+   Match Results Overlay Styles
+============================================================ */
+
+.match-results-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.match-results-container {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 700px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.match-results-title {
+    text-align: center;
+    font-size: 42px;
+    font-weight: 800;
+    margin: 0 0 30px 0;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    font-family: 'Exo 2', sans-serif;
+}
+
+.results-table {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.results-header {
+    display: grid;
+    grid-template-columns: 2fr 2fr 1.5fr;
+    gap: 10px;
+    padding: 15px 20px;
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: 700;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #aaa;
+}
+
+.result-row {
+    display: grid;
+    grid-template-columns: 2fr 2fr 1.5fr;
+    gap: 10px;
+    padding: 18px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+    animation: slideIn 0.4s ease-out backwards;
+}
+
+.result-row:nth-child(2) { animation-delay: 0.1s; }
+.result-row:nth-child(3) { animation-delay: 0.2s; }
+.result-row:nth-child(4) { animation-delay: 0.3s; }
+.result-row:nth-child(5) { animation-delay: 0.4s; }
+.result-row:nth-child(6) { animation-delay: 0.5s; }
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.result-row:last-child {
+    border-bottom: none;
+}
+
+.result-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.result-row.highlight-me {
+    background: rgba(76, 175, 80, 0.15);
+    border: 2px solid rgba(76, 175, 80, 0.4);
+    border-radius: 8px;
+    margin: 2px;
+    padding: 16px 18px;
+}
+
+.result-row.eliminated {
+    opacity: 0.6;
+}
+
+.col-place {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.medal {
+    font-size: 28px;
+}
+
+.place-text {
+    color: #fff;
+}
+
+.col-player {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.you-badge {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+}
+
+.col-trophies {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.trophies-positive {
+    color: #FFD700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.trophies-zero {
+    color: #888;
+}
+
+.return-message {
+    text-align: center;
+    color: #aaa;
+    font-size: 16px;
+    margin-top: 20px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .match-results-container {
+        padding: 30px 20px;
+    }
+
+    .match-results-title {
+        font-size: 32px;
+    }
+
+    .results-header,
+    .result-row {
+        grid-template-columns: 1.5fr 2fr 1.5fr;
+        padding: 12px 15px;
+        font-size: 14px;
+    }
+
+    .col-place {
+        font-size: 14px;
+    }
+
+    .medal {
+        font-size: 22px;
+    }
+
+    .col-player {
+        font-size: 16px;
+    }
+
+    .col-trophies {
+        font-size: 16px;
+    }
+}

@@ -135,9 +135,24 @@
     gap: 0.4rem;
 }
 
+.lb-table-header {
+    display: grid;
+    grid-template-columns: 60px 1fr 100px 80px 80px;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    background: rgba(0, 200, 160, 0.1);
+    border-radius: 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #00ffe0;
+}
+
 .lb-row {
     display: grid;
-    grid-template-columns: 40px 1fr auto auto;
+    grid-template-columns: 60px 1fr 100px 80px 80px;
     align-items: center;
     gap: 0.75rem;
     padding: 0.65rem 0.9rem;
@@ -157,27 +172,33 @@
     border-color: rgba(255, 200, 50, 0.2);
 }
 
-.lb-row-rank {
+.lb-col-rank {
     text-align: center;
     font-weight: 700;
-    color: rgba(200, 200, 255, 0.5);
+    color: rgba(200, 200, 255, 0.7);
 }
 
-.lb-row-name {
+.lb-col-name {
     color: #c0d8ff;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.lb-row-trophies {
+.lb-col-trophies {
     font-weight: 700;
     color: #ffd166;
+    text-align: center;
 }
 
-.lb-row-wins {
-    color: rgba(160, 220, 255, 0.7);
-    font-size: 0.8rem;
+.lb-col-wins {
+    color: rgba(160, 220, 255, 0.9);
+    text-align: center;
+}
+
+.lb-col-games {
+    color: rgba(160, 200, 255, 0.7);
+    text-align: center;
 }
 
 .lb-loading {

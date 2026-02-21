@@ -77,6 +77,7 @@ export default function Lobby() {
 
         // Successfully joined room
         socket.on("roomJoined", ({ roomId, playerId, players, chatHistory }) => {
+            console.log('[Lobby] roomJoined:', { roomId, playerId, players });
             setPlayerId(playerId);
             setRoomId(roomId);
             setPlayers(players);
@@ -86,11 +87,20 @@ export default function Lobby() {
         });
 
         // Room was full or error
-        socket.on("roomFull", ({ message }) => setError(message));
-        socket.on("roomError", ({ message }) => setError(message));
+        socket.on("roomFull", ({ message }) => {
+            console.log('[Lobby] roomFull:', message);
+            setError(message);
+        });
+        socket.on("roomError", ({ message }) => {
+            console.log('[Lobby] roomError:', message);
+            setError(message);
+        });
 
         // Another player joined
-        socket.on("playerJoined", ({ players }) => setPlayers(players));
+        socket.on("playerJoined", ({ players }) => {
+            console.log('[Lobby] playerJoined, total players:', players.length);
+            setPlayers(players);
+        });
 
         // A player's ready state changed
         socket.on("playersUpdated", ({ players }) => setPlayers(players));
@@ -171,6 +181,7 @@ export default function Lobby() {
         if (!inputRoom.trim()) { setError("Enter a room code"); return; }
         if (!playerName) { setError("Go back and set your name first"); return; }
         setError("");
+        console.log('[Lobby] Joining room:', inputRoom.trim().toUpperCase(), 'as', playerName);
         socket.emit("joinRoom", {
             roomId: inputRoom.trim().toUpperCase(),
             playerName,
