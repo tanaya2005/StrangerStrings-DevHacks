@@ -360,11 +360,19 @@ export default function Lobby() {
             <div className="lobby-container">
                 {/* ---- Header ---- */}
                 <div className="lobby-header">
-                    <div>
-                        <h1 className="lobby-title">🌌 Multiversal Rush</h1>
-                        <p className="lobby-subtitle">Waiting Room</p>
+                    <div className="lobby-brand">
+                        <div className="lobby-logo-portal">
+                            <div className="portal-ring"></div>
+                            <div className="portal-core"></div>
+                        </div>
+                        <div className="lobby-title-group">
+                            <h1 className="lobby-title">Multiversal Rush</h1>
+                            <p className="lobby-subtitle">Waiting Room</p>
+                        </div>
                     </div>
-                    <button className="btn-logout" onClick={handleLogout}>Logout</button>
+                    <button className="btn-back-lobby" onClick={() => navigate("/home")}>
+                        BACK
+                    </button>
                 </div>
 
                 {/* ---- Avatar Picker ---- */}

@@ -1,10 +1,11 @@
-// ============================================================
-//  pages/Home.jsx — Home page with profile and leaderboard
-// ============================================================
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
+import { Canvas } from "@react-three/fiber";
 import useStore from "../store/store";
 import socket from "../socket/socket";
+import HomeAvatar3D from "../components/HomeAvatar3D";
+import SettingsOverlay from "../components/SettingsOverlay";
+import LeaderboardOverlay from "../components/LeaderboardOverlay";
 import "./Home.css";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
@@ -13,215 +14,142 @@ export default function Home() {
     const navigate = useNavigate();
     const user = useStore((s) => s.user);
     const logout = useStore((s) => s.logout);
-    const setLeaderboard = useStore((s) => s.setLeaderboard);
     const leaderboard = useStore((s) => s.leaderboard);
+    const setLeaderboard = useStore((s) => s.setLeaderboard);
 
-    const [userStats, setUserStats] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const avatar = useStore((s) => s.avatar);
+    const [userRank, setUserRank] = useState(0);
+    const [userTrophies, setUserTrophies] = useState(0);
+    const [showSettings, setShowSettings] = useState(false);
+    const [showLeaderboard, setShowLeaderboard] = useState(false);
 
-    // Fetch user stats and leaderboard
     useEffect(() => {
-        async function fetchData() {
+        async function fetchLeaderboard() {
             try {
-                // Fetch leaderboard
                 const lbRes = await fetch(`${SERVER_URL}/api/leaderboard`);
                 const lbData = await lbRes.json();
                 setLeaderboard(lbData);
 
-                // Find current user in leaderboard
-                const myStats = lbData.find(p => p.username === user?.username);
-                if (myStats) {
-                    setUserStats(myStats);
-                }
+                const myData = lbData.find(p => p.username === user?.username);
+                const myRank = lbData.findIndex(p => p.username === user?.username) + 1;
+
+                setUserRank(myRank);
+                setUserTrophies(myData?.trophies || 0);
             } catch (err) {
-                console.error("Failed to fetch data:", err);
-            } finally {
-                setLoading(false);
+                console.error("Failed to fetch leaderboard:", err);
             }
         }
-        fetchData();
+        fetchLeaderboard();
     }, [user, setLeaderboard]);
 
-    // Listen for real-time leaderboard updates
-    useEffect(() => {
-        socket.on("leaderboardUpdate", ({ leaderboard: lb }) => {
-            setLeaderboard(lb);
-            const myStats = lb.find(p => p.username === user?.username);
-            if (myStats) setUserStats(myStats);
-        });
-        return () => socket.off("leaderboardUpdate");
-    }, [user, setLeaderboard]);
+    const handlePlayNow = () => navigate("/lobby");
+    const handleAchievements = () => navigate("/achievements");
+    const handleFriends = () => navigate("/friends");
+    const handleSettings = () => setShowSettings(true);
+    const handleLeaderboard = () => setShowLeaderboard(true);
+    const handleShop = () => console.log("Shop Clicked");
 
-    function handleLogout() {
+    const handleLogout = () => {
         if (socket.connected) socket.disconnect();
         logout();
         navigate("/");
-    }
-
-    function handlePlayNow() {
-        navigate("/lobby");
-    }
-
-    const userRank = leaderboard.findIndex(p => p.username === user?.username) + 1;
+    };
 
     return (
         <div className="home-page">
+            {/* Dynamic Background */}
             <div className="home-bg-anim" />
+            <div className="home-bg-grid" />
 
-            {/* Sidebar Toggle Button (Mobile) */}
-            <button
-                className="sidebar-toggle"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-                {sidebarOpen ? "✕" : "🏆"}
-            </button>
+            {/* UI Overlay */}
+            <div className="ui-overlay">
 
-            {/* Sidebar - Global Leaderboard */}
-            <aside className={`home-sidebar ${sidebarOpen ? "open" : ""}`}>
-                <div className="sidebar-header">
-                    <h2>🏆 Global Leaderboard</h2>
-                    <p className="sidebar-subtitle">Top 20 Players</p>
+                {/* Top Section */}
+                <div className="ui-top">
+                    {/* Top Left: Name & Achievements */}
+                    <div className="user-info-group">
+                        <div className="player-name-card">
+                            <div className="player-name">{user?.username || "PLAYER_X"}</div>
+                            <div className="player-rank">
+                                {userRank > 0 ? `RANK #${userRank}` : "UNRANKED"}
+                            </div>
+                        </div>
+                        <button className="btn-hud btn-leaderboard" onClick={handleLeaderboard}>
+                            <span>🏆</span> <span>LEADERBOARD</span>
+                        </button>
+                        <button className="btn-hud btn-achievements" onClick={handleAchievements}>
+                            <span>🎖️</span> <span>ACHIEVEMENTS</span>
+                        </button>
+                    </div>
+
+                    {/* Top Center: Game Title */}
+                    <h1 className="game-title-main">
+                        MULTIVERSAL RUSH
+                    </h1>
+
+                    {/* Top Right: Currency & Friends */}
+                    <div className="top-right-group">
+                        <div className="currency-container">
+                            <div className="currency-item trophy-count" title="Trophies">
+                                <span className="icon">🏆</span>
+                                <span className="value">{userTrophies.toLocaleString()}</span>
+                            </div>
+                            <div className="currency-item gem-count" title="Gems">
+                                <span className="icon">💎</span>
+                                <span className="value">50</span>
+                                <button className="btn-gem-plus">+</button>
+                            </div>
+                        </div>
+                        <button className="btn-hud btn-friends" onClick={handleFriends}>
+                            <span>👥</span> <span>FRIENDS</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div className="sidebar-content">
-                    {loading ? (
-                        <p className="sidebar-loading">Loading...</p>
-                    ) : leaderboard.length === 0 ? (
-                        <p className="sidebar-empty">No players yet</p>
-                    ) : (
-                        <div className="leaderboard-list">
-                            {leaderboard.map((player, idx) => (
-                                <div
-                                    key={player._id}
-                                    className={`lb-item ${player.username === user?.username ? "me" : ""}`}
-                                >
-                                    <span className="lb-rank">#{idx + 1}</span>
-                                    <span className="lb-name">{player.username}</span>
-                                    <span className="lb-trophies">🏆 {player.trophies}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                {/* Bottom Section */}
+                <div className="ui-bottom">
+                    {/* Bottom Left: Settings */}
+                    <button className="btn-hud btn-settings" onClick={handleSettings}>
+                        ⚙️
+                    </button>
+
+                    {/* Bottom Right: Shop */}
+                    <button className="btn-hud btn-shop" onClick={handleShop}>
+                        <span>🛒</span> <span>SHOP</span>
+                    </button>
                 </div>
-            </aside>
+            </div>
 
-            {/* Main Content */}
-            <main className="home-main">
-                {/* Header */}
-                <header className="home-header">
-                    <div className="header-left">
-                        <h1 className="home-title">🌌 Multiversal Rush</h1>
+            {/* Center Section: 3D Avatar & Play Now */}
+            <div className="home-center">
+                <div className="center-avatar-container">
+                    <div className="avatar-glow"></div>
+                    <div className="avatar-main">
+                        <Suspense fallback={<div className="avatar-loading">Loading 3D...</div>}>
+                            <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0, 7], fov: 45 }}>
+                                <HomeAvatar3D modelPath={avatar} />
+                            </Canvas>
+                        </Suspense>
                     </div>
-                    <button className="btn-logout" onClick={handleLogout}>
-                        Logout
-                    </button>
-                </header>
+                </div>
 
-                {/* Profile Section */}
-                <section className="profile-section">
-                    <div className="profile-card">
-                        <div className="profile-avatar">
-                            {user?.username?.charAt(0).toUpperCase() || "?"}
-                        </div>
-                        <div className="profile-info">
-                            <h2 className="profile-name">{user?.username || "Player"}</h2>
-                            <p className="profile-email">{user?.email}</p>
-                            {userRank > 0 && (
-                                <p className="profile-rank">Global Rank: #{userRank}</p>
-                            )}
-                        </div>
-                    </div>
+                <button className="btn-play-now" onClick={handlePlayNow}>
+                    PLAY NOW
+                </button>
+            </div>
 
-                    {/* Stats Grid */}
-                    <div className="stats-grid">
-                        <div className="stat-card">
-                            <div className="stat-icon">🏆</div>
-                            <div className="stat-value">{userStats?.trophies || 0}</div>
-                            <div className="stat-label">Trophies</div>
-                        </div>
-
-                        <div className="stat-card">
-                            <div className="stat-icon">👑</div>
-                            <div className="stat-value">{userStats?.wins || 0}</div>
-                            <div className="stat-label">Wins</div>
-                        </div>
-
-                        <div className="stat-card">
-                            <div className="stat-icon">🎮</div>
-                            <div className="stat-value">{userStats?.gamesPlayed || 0}</div>
-                            <div className="stat-label">Games Played</div>
-                        </div>
-
-                        <div className="stat-card">
-                            <div className="stat-icon">📊</div>
-                            <div className="stat-value">
-                                {userStats?.gamesPlayed > 0
-                                    ? `${((userStats.wins / userStats.gamesPlayed) * 100).toFixed(1)}%`
-                                    : "0%"}
-                            </div>
-                            <div className="stat-label">Win Rate</div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* Action Buttons */}
-                <section className="actions-section">
-                    <button className="btn-play" onClick={handlePlayNow}>
-                        <span className="btn-icon">🚀</span>
-                        <span className="btn-text">Play Now</span>
-                    </button>
-
-                    <button className="btn-secondary" onClick={() => navigate("/friends")}>
-                        <span className="btn-icon">👥</span>
-                        <span className="btn-text">Friends &amp; DMs</span>
-                    </button>
-
-                    <button className="btn-secondary" onClick={() => navigate("/leaderboard")}>
-                        <span className="btn-icon">🏆</span>
-                        <span className="btn-text">Leaderboard</span>
-                    </button>
-
-                    <button className="btn-secondary" onClick={() => navigate("/achievements")}>
-                        <span className="btn-icon">🎖️</span>
-                        <span className="btn-text">Achievements</span>
-                    </button>
-                </section>
-
-                {/* Quick Stats */}
-                {userStats && (
-                    <section className="quick-stats">
-                        <h3>Your Performance</h3>
-                        <div className="progress-bars">
-                            <div className="progress-item">
-                                <div className="progress-label">
-                                    <span>Trophies Progress</span>
-                                    <span>{userStats.trophies} / 1000</span>
-                                </div>
-                                <div className="progress-bar">
-                                    <div
-                                        className="progress-fill"
-                                        style={{ width: `${Math.min((userStats.trophies / 1000) * 100, 100)}%` }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="progress-item">
-                                <div className="progress-label">
-                                    <span>Games Played</span>
-                                    <span>{userStats.gamesPlayed} / 100</span>
-                                </div>
-                                <div className="progress-bar">
-                                    <div
-                                        className="progress-fill"
-                                        style={{ width: `${Math.min((userStats.gamesPlayed / 100) * 100, 100)}%` }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                )}
-            </main>
+            {/* Overlays */}
+            {showSettings && (
+                <SettingsOverlay
+                    onClose={() => setShowSettings(false)}
+                    onLogout={handleLogout}
+                />
+            )}
+            {showLeaderboard && (
+                <LeaderboardOverlay
+                    onClose={() => setShowLeaderboard(false)}
+                />
+            )}
         </div>
     );
 }

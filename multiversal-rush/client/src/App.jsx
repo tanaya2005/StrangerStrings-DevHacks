@@ -1,9 +1,9 @@
 // ============================================================
-//  App.jsx — React Router + auth guard
+//  App.jsx — React Router + auth guard + Loading Screen
 //  FIX: isLoggedIn() was called at mount time only (not reactive).
 //  Now uses useState so the guard updates immediately after login.
 // ============================================================
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -13,6 +13,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Friends from "./pages/Friends";
 import WorldTest from "./pages/WorldTest";
 import Achievements from "./pages/Achievements";
+import LoadingScreen from "./components/LoadingScreen";
 
 /** Read token from localStorage — called on every render */
 function isLoggedIn() {
@@ -37,10 +38,28 @@ function PublicRoute({ children }) {
 }
 
 export default function App() {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    /** 
+     * Show loading screen for 1.5 seconds minimum 
+     * even if the auth check is instant.
+     */
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login — redirect to /home if already authenticated */}
+        {/* Login — redirect to /home if already authenticated via PublicRoute */}
         <Route
           path="/"
           element={
@@ -49,6 +68,7 @@ export default function App() {
             </PublicRoute>
           }
         />
+
         {/* Protected pages */}
         <Route
           path="/home"
@@ -101,7 +121,7 @@ export default function App() {
           }
         />
 
-        {/* Catch-all */}
+        {/* Catch-all: redirects to root, which then handles auth check */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
