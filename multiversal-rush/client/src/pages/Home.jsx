@@ -8,6 +8,7 @@ import SettingsOverlay from "../components/SettingsOverlay";
 import LeaderboardOverlay from "../components/LeaderboardOverlay";
 import ShopOverlay from "../components/ShopOverlay";
 import GemPurchaseOverlay from "../components/GemPurchaseOverlay";
+import NotificationsOverlay from "../components/NotificationsOverlay";
 import "./Home.css";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
@@ -54,6 +55,7 @@ export default function Home() {
     const [showShop, setShowShop] = useState(false);
     const [showPlayModal, setShowPlayModal] = useState(false);
     const [showGemPurchase, setShowGemPurchase] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
 
     useEffect(() => {
         async function fetchInitialData() {
@@ -167,9 +169,23 @@ export default function Home() {
                                 <button className="btn-gem-plus" onClick={handleGemPurchase}>+</button>
                             </div>
                         </div>
-                        <button className="btn-hud btn-friends" onClick={handleFriends}>
-                            <span>👥</span> <span>FRIENDS</span>
-                        </button>
+                        <div className="btn-stack" style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn-hud btn-friends" onClick={handleFriends}>
+                                <span>👥</span> <span>FRIENDS</span>
+                            </button>
+                            <button className="btn-hud btn-notif" onClick={() => setShowNotifications(true)} style={{ position: 'relative' }}>
+                                <span>🔔</span>
+                                {useStore.getState().notifications.length > 0 && (
+                                    <span style={{
+                                        position: 'absolute', top: '-5px', right: '-5px',
+                                        background: '#ff4d6d', color: '#fff', fontSize: '10px',
+                                        padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold'
+                                    }}>
+                                        {useStore.getState().notifications.length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -206,51 +222,69 @@ export default function Home() {
             </div>
 
             {/* ── Play Mode Selection Modal ── */}
-            {showPlayModal && (
-                <div className="play-modal-backdrop" onClick={() => setShowPlayModal(false)}>
-                    <div className="play-modal" onClick={(e) => e.stopPropagation()}>
-                        <button className="play-modal-close" onClick={() => setShowPlayModal(false)}>✕</button>
-                        <h2 className="play-modal-title">CHOOSE YOUR MODE</h2>
-                        <div className="play-modal-options">
-                            <button className="play-mode-btn play-mode-solo" onClick={handleSoloPlay} id="btn-solo-mode">
-                                <div className="play-mode-icon">🏃</div>
-                                <div className="play-mode-label">SOLO</div>
-                                <div className="play-mode-desc">Race through obstacle gauntlets</div>
-                                <div className="play-mode-tag">Classic Mode</div>
-                            </button>
-                            <button className="play-mode-btn play-mode-team" onClick={handleTeamPlay} id="btn-team-mode">
-                                <div className="play-mode-icon">🏁</div>
-                                <div className="play-mode-label">TEAM</div>
-                                <div className="play-mode-desc">Multiversal Relay — 3v3 team race</div>
-                                <div className="play-mode-tag play-mode-tag-new">NEW</div>
-                            </button>
+            {
+                showPlayModal && (
+                    <div className="play-modal-backdrop" onClick={() => setShowPlayModal(false)}>
+                        <div className="play-modal" onClick={(e) => e.stopPropagation()}>
+                            <button className="play-modal-close" onClick={() => setShowPlayModal(false)}>✕</button>
+                            <h2 className="play-modal-title">CHOOSE YOUR MODE</h2>
+                            <div className="play-modal-options">
+                                <button className="play-mode-btn play-mode-solo" onClick={handleSoloPlay} id="btn-solo-mode">
+                                    <div className="play-mode-icon">🏃</div>
+                                    <div className="play-mode-label">SOLO</div>
+                                    <div className="play-mode-desc">Race through obstacle gauntlets</div>
+                                    <div className="play-mode-tag">Classic Mode</div>
+                                </button>
+                                <button className="play-mode-btn play-mode-team" onClick={handleTeamPlay} id="btn-team-mode">
+                                    <div className="play-mode-icon">🏁</div>
+                                    <div className="play-mode-label">TEAM</div>
+                                    <div className="play-mode-desc">Multiversal Relay — 3v3 team race</div>
+                                    <div className="play-mode-tag play-mode-tag-new">NEW</div>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Overlays */}
-            {showSettings && (
-                <SettingsOverlay
-                    onClose={() => setShowSettings(false)}
-                    onLogout={handleLogout}
-                />
-            )}
-            {showLeaderboard && (
-                <LeaderboardOverlay
-                    onClose={() => setShowLeaderboard(false)}
-                />
-            )}
-            {showShop && (
-                <ShopOverlay
-                    onClose={() => setShowShop(false)}
-                />
-            )}
-            {showGemPurchase && (
-                <GemPurchaseOverlay
-                    onClose={() => setShowGemPurchase(false)}
-                />
-            )}
-        </div>
+            {
+                showSettings && (
+                    <SettingsOverlay
+                        onClose={() => setShowSettings(false)}
+                        onLogout={handleLogout}
+                    />
+                )
+            }
+            {
+                showLeaderboard && (
+                    <LeaderboardOverlay
+                        onClose={() => setShowLeaderboard(false)}
+                    />
+                )
+            }
+            {
+                showShop && (
+                    <ShopOverlay
+                        onClose={() => setShowShop(false)}
+                    />
+                )
+            }
+            {
+                showGemPurchase && (
+                    <GemPurchaseOverlay
+                        onClose={() => setShowGemPurchase(false)}
+                    />
+                )
+            }
+            {
+                showNotifications && (
+                    <NotificationsOverlay
+                        onClose={() => setShowNotifications(false)}
+                        onNavigateRoom={(code) => navigate("/lobby", { state: { autoJoinRoom: code } })}
+                    />
+                )
+            }
+        </div >
     );
 }

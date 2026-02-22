@@ -5,76 +5,151 @@ import * as THREE from 'three';
 import Player from '../Player/Player';
 import Platform from '../Obstacles/Platform';
 import GlitchPlatform from '../Obstacles/GlitchPlatform';
-import ReverseZone from '../Obstacles/ReverseZone';
-import TeleportTile from '../Obstacles/TeleportTile';
-import LaserGrid from '../Obstacles/LaserGrid';
 import {
     CyberpunkBuilding,
-    HologramAd,
     GlitchSky,
     FlyingVehicle
 } from '../Environment/NeonParadoxComponents';
 
 /**
  * World: Neon Paradox Sector
- * Theme: Glitch + Cyberpunk City
+ * Complete Redesign: Simpler, stable, checkpoints, left/right turns.
  */
+
+const DIE_DISTANCE = 2.0;
+function checkDeathHazard(pos, hazardPos, emitFell, playerRef, checkpoint) {
+    if (!pos || !hazardPos) return;
+    const dist = Math.sqrt((pos.x - hazardPos.x) ** 2 + (pos.y - hazardPos.y) ** 2 + (pos.z - hazardPos.z) ** 2);
+    if (dist < DIE_DISTANCE) {
+        pos.set(...checkpoint); // Reset to checkpoint
+        if (playerRef.current) {
+            // Player.jsx does not expose velocityXZ via imperative handle explicitly
+            // But if it has physics quirks, resetting position is usually enough
+        }
+        emitFell?.();
+    }
+}
+
+// ============================================================
+//  OBSTACLE: Slow Rotating Neon Beam
+// ============================================================
+function RotatingBeam({ position, speed = 1, emitFell, playerRef, getCurrentCheckpoint }) {
+    const groupRef = useRef();
+    const hazard1 = useRef(new THREE.Vector3());
+    const hazard2 = useRef(new THREE.Vector3());
+
+    useFrame((state) => {
+        if (!groupRef.current) return;
+        groupRef.current.rotation.y = state.clock.elapsedTime * speed;
+
+        if (playerRef?.current?.position) {
+            const pos = playerRef.current.position;
+            // Get world positions of the beam ends
+            groupRef.current.children[0].getWorldPosition(hazard1.current);
+            groupRef.current.children[1].getWorldPosition(hazard2.current);
+
+            checkDeathHazard(pos, hazard1.current, emitFell, playerRef, getCurrentCheckpoint());
+            checkDeathHazard(pos, hazard2.current, emitFell, playerRef, getCurrentCheckpoint());
+        }
+    });
+
+    return (
+        <group ref={groupRef} position={position}>
+            {/* Blade 1 */}
+            <mesh position={[3, 1, 0]}>
+                <boxGeometry args={[6, 0.5, 0.5]} />
+                <meshStandardMaterial color="#ff0055" emissive="#ff0055" emissiveIntensity={2} />
+            </mesh>
+            {/* Blade 2 */}
+            <mesh position={[-3, 1, 0]}>
+                <boxGeometry args={[6, 0.5, 0.5]} />
+                <meshStandardMaterial color="#ff0055" emissive="#ff0055" emissiveIntensity={2} />
+            </mesh>
+            {/* Core */}
+            <mesh position={[0, 0.5, 0]}>
+                <cylinderGeometry args={[0.5, 0.5, 2, 8]} />
+                <meshStandardMaterial color="#222" />
+            </mesh>
+        </group>
+    );
+}
+
+
+// ============================================================
+//  MAIN WORLD
+// ============================================================
 export default function WorldNeonParadox({ emitMove, emitFinished, emitFell, emitWorldTransition, hidePlayer = false }) {
     const portalRef = useRef();
     const playerRef = useRef();
+    const finishedRef = useRef(false);
 
-    // 1. Generate City Layout (Extended for 300 units)
+    // Dynamic Checkpoint System
+    const checkpointRef = useRef([0, 2, 0]);
+    const getCurrentCheckpoint = () => checkpointRef.current;
+
+    // 1. Generate City Layout
     const city = useMemo(() => {
         const buildings = [];
-        for (let i = 0; i < 25; i++) {
-            buildings.push({
-                pos: [-25 - Math.random() * 20, 0, -i * 12],
-                h: 20 + Math.random() * 50,
-                w: 7 + Math.random() * 5
-            });
-            buildings.push({
-                pos: [25 + Math.random() * 20, 0, -i * 12],
-                h: 20 + Math.random() * 50,
-                w: 7 + Math.random() * 5
-            });
+        for (let i = 0; i < 20; i++) {
+            // Left block
+            buildings.push({ pos: [-35, -5, -i * 15], h: 30 + Math.random() * 40, w: 8 });
+            // Right block
+            buildings.push({ pos: [45, -5, -i * 15], h: 30 + Math.random() * 40, w: 8 });
+            // Far front block
+            buildings.push({ pos: [60 + (i * 15), -5, -120], h: 30 + Math.random() * 40, w: 8 });
         }
         return buildings;
     }, []);
 
-    // 2. Generate Vehicles
+    // 2. Generate Ambient Vehicles
     const vehicles = useMemo(() => {
         const v = [];
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 20; i++) {
             v.push({
-                start: [(Math.random() - 0.5) * 80, 15 + Math.random() * 30, -Math.random() * 300],
-                speed: 15 + Math.random() * 25,
+                start: [(Math.random() - 0.5) * 100, 10 + Math.random() * 20, -Math.random() * 200],
+                speed: 10 + Math.random() * 20,
                 dir: Math.random() > 0.5 ? 1 : -1
             });
         }
         return v;
     }, []);
 
-    // 3. Teleport Targets (Strategically safe)
-    const teleportTargets = useMemo(() => [
-        [0, 6, -200], // Start of Phase 4 (Short cut)
-        [15, 8, -170], // Side platform (Phase 3)
-        [-15, 8, -170] // Side platform (Phase 3)
-    ], []);
-
-    useFrame((state, delta) => {
+    useFrame((_, delta) => {
         if (portalRef.current) portalRef.current.rotation.y += delta * 2;
+
+        if (playerRef.current) {
+            const pos = playerRef.current.position;
+            if (!pos) return;
+
+            // Checkpoints triggers (based on coordinates)
+            if (pos.z < -25 && pos.z > -35 && pos.x > 10 && pos.x < 30) checkpointRef.current = [20, 2, -30]; // Checkpoint 1: After right turn
+            if (pos.z < -65 && pos.z > -75 && pos.x > 50 && pos.x < 70) checkpointRef.current = [60, 2, -70]; // Checkpoint 2: Before Narrow Path
+
+            // Manual Death Y-Check (intercept before Player.jsx FALL_LIMIT)
+            if (pos.y < -5) {
+                pos.set(...checkpointRef.current);
+                emitFell?.();
+            }
+
+            // Portal Victory
+            if (!finishedRef.current && pos.x > 55 && pos.x < 65 && pos.z < -165) {
+                finishedRef.current = true;
+                emitFinished?.();
+            }
+        }
     });
 
     return (
         <>
             {/* ---- 🌌 Atmosphere & Environment ---- */}
             <GlitchSky />
-            <fog attach="fog" args={["#1a0033", 40, 220]} />
+            <color attach="background" args={["#050011"]} />
+            <fog attach="fog" args={["#050011", 30, 180]} />
 
-            <ambientLight intensity={0.2} />
-            <pointLight position={[0, 20, -50]} color="#ff00ff" intensity={1} />
-            <pointLight position={[0, 20, -150]} color="#00ffff" intensity={1} />
-            <pointLight position={[0, 20, -250]} color="#ff00ff" intensity={1} />
+            <ambientLight intensity={0.3} />
+            <pointLight position={[0, 15, -15]} color="#ff00ff" intensity={1.5} distance={50} />
+            <pointLight position={[30, 15, -30]} color="#00ffff" intensity={1.5} distance={50} />
+            <pointLight position={[60, 15, -80]} color="#ff00ff" intensity={1.5} distance={50} />
 
             {city.map((b, i) => (
                 <CyberpunkBuilding key={i} position={b.pos} height={b.h} width={b.w} depth={b.w} />
@@ -83,86 +158,67 @@ export default function WorldNeonParadox({ emitMove, emitFinished, emitFell, emi
                 <FlyingVehicle key={i} startPos={v.start} speed={v.speed} direction={v.dir} />
             ))}
 
-            <HologramAd position={[-12, 12, -30]} text="PHASE 1: GATEWAY" color="#00ffff" />
-            <HologramAd position={[12, 15, -70]} text="PHASE 2: PLATFORMING" color="#ff00ff" />
-            <HologramAd position={[-15, 18, -140]} text="PHASE 4: TRIAL" color="#ff0000" />
+            <Stars radius={200} depth={50} count={3000} factor={4} saturation={1} fade speed={1} />
 
-            <Stars radius={200} depth={50} count={6000} factor={4} saturation={0} fade speed={1} />
+            {/* ---- LEVEL PATH DESIGN ---- */}
 
-            {/* ---- PHASE 1: THE GATEWAY (0 to -30) ---- */}
-            <Platform position={[0, -0.5, 0]} scale={[12, 1, 15]} type="static" color="#0a0a1a" />
-            {/* Side-by-side pair */}
-            <Platform position={[-4, 1, -15]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
-            <Platform position={[4, 1, -15]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
-            <GlitchPlatform position={[0, 2, -28]} scale={[12, 0.5, 6]} interval={4000} duration={1500} color="#ff00ff" />
+            {/* 1. Straight Neon Road */}
+            <Platform position={[0, 0, 0]} scale={[8, 1, 8]} type="static" color="#111133" />
+            <Platform position={[0, 0, -12]} scale={[6, 0.5, 14]} type="static" color="#00ffff" />
 
-            {/* ---- PHASE 2: PLATFORMING (-30 to -85) ---- */}
-            {/* Side-by-side pair */}
-            <Platform position={[-4, 3, -40]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
-            <Platform position={[4, 3, -40]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
+            {/* 2. Right Turn */}
+            <Platform position={[0, 0, -30]} scale={[10, 0.5, 10]} type="static" color="#ff00ff" />
+            <Platform position={[10, 0, -30]} scale={[12, 0.5, 6]} type="static" color="#00ffff" />
 
-            <GlitchPlatform position={[0, 4, -50]} scale={[10, 0.5, 6]} interval={3000} duration={1200} color="#ff00ff" />
+            {/* 3. Checkpoint 1 Platform */}
+            <Platform position={[24, 0, -30]} scale={[10, 0.5, 10]} type="static" color="#111133" />
+            <mesh position={[24, 0.5, -30]}><cylinderGeometry args={[1.5, 1.5, 0.2, 16]} /><meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.5} opacity={0.3} transparent /></mesh>
 
-            {/* Side-by-side pair */}
-            <Platform position={[-4.5, 5, -60]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
-            <Platform position={[4.5, 5, -60]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
+            {/* 4. Moving Platform Section */}
+            <Platform position={[40, 0, -30]} scale={[8, 0.5, 6]} type="moving" axis="x" range={6} speed={1.5} color="#ff00ff" />
 
-            <GlitchPlatform position={[0, 6, -72]} scale={[6, 0.5, 6]} interval={3000} duration={1200} color="#ff00ff" />
+            {/* 5. Left Turn (Moving towards -Z now) */}
+            <Platform position={[60, 0, -30]} scale={[10, 0.5, 10]} type="static" color="#111133" />
+            <Platform position={[60, 0, -42]} scale={[6, 0.5, 12]} type="static" color="#00ffff" />
 
-            {/* Side-by-side pair */}
-            <Platform position={[-5, 7, -85]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
-            <Platform position={[5, 7, -85]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
+            {/* 6. Rotating Beam Obstacle */}
+            <Platform position={[60, 0, -56]} scale={[8, 0.5, 8]} type="static" color="#ff0055" />
+            <RotatingBeam position={[60, 0.5, -56]} speed={1.5} playerRef={playerRef} emitFell={emitFell} getCurrentCheckpoint={getCurrentCheckpoint} />
 
-            {/* ---- PHASE 3: THE GLITCH NEXUS (-85 to -125) ---- */}
-            <Platform position={[0, 8, -95]} scale={[10, 0.5, 10]} type="static" color="#0f0f1b" />
-            <TeleportTile position={[0, 8.3, -95]} targets={teleportTargets} playerRef={playerRef} />
+            {/* 7. Jump Gap with Disappearing Tile */}
+            <GlitchPlatform position={[60, 0, -68]} scale={[4, 0.5, 4]} interval={2500} duration={1200} color="#00ffff" />
 
-            {/* Split Paths */}
-            <Platform position={[-12, 8, -110]} scale={[6, 0.5, 6]} type="static" color="#ff00ff" />
-            <Platform position={[12, 8, -110]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
-            {/* Fake Tiles */}
-            <mesh position={[0, 7.8, -110]}>
-                <boxGeometry args={[6, 0.1, 6]} />
-                <meshStandardMaterial color="#ff00ff" transparent opacity={0.3} emissive="#ff00ff" emissiveIntensity={2} />
-            </mesh>
-            <GlitchPlatform position={[0, 9, -125]} scale={[8, 0.5, 6]} interval={2500} duration={1000} color="#00ffff" />
+            {/* 8. Checkpoint 2 Platform */}
+            <Platform position={[60, 0, -80]} scale={[10, 0.5, 10]} type="static" color="#111133" />
+            <mesh position={[60, 0.5, -80]}><cylinderGeometry args={[1.5, 1.5, 0.2, 16]} /><meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.5} opacity={0.3} transparent /></mesh>
 
-            {/* ---- PHASE 4: THE PROTOCOL TRIAL (-125 to -180) ---- */}
-            {/* Section 1: Horizontal */}
-            <LaserGrid
-                position={[0, 11, -140]} size={[12, 6, 1]} playerRef={playerRef}
-                onHit={() => { playerRef.current.position.set(0, 8, -95); emitFell?.(); }}
-            />
-            <Platform position={[0, 10, -140]} scale={[10, 0.5, 10]} type="static" color="#0a0a1a" />
+            {/* 9. Narrow Neon Path */}
+            <Platform position={[60, 0, -96]} scale={[2, 0.5, 20]} type="static" color="#ff00ff" />
 
-            {/* Section 2: Vertical */}
-            <LaserGrid
-                position={[0, 12, -155]} size={[10, 8, 1]} playerRef={playerRef}
-                onHit={() => { playerRef.current.position.set(0, 8, -95); emitFell?.(); }}
-            />
-            <Platform position={[0, 11, -155]} scale={[6, 0.5, 12]} type="static" color="#00ffff" />
+            {/* Small safe tile */}
+            <Platform position={[60, 0, -112]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
 
-            {/* Section 3: The Combined Grid */}
-            <LaserGrid
-                position={[0, 13, -167]} size={[14, 8, 1]} playerRef={playerRef}
-                onHit={() => { playerRef.current.position.set(0, 8, -95); emitFell?.(); }}
-            />
-            <Platform position={[0, 12, -167]} scale={[10, 0.5, 8]} type="static" color="#ff00ff" />
+            {/* 10. Final Elevated Bridge (Jump Steps) */}
+            <Platform position={[60, 1.5, -124]} scale={[6, 0.5, 6]} type="static" color="#ff00ff" />
+            <Platform position={[60, 3.0, -136]} scale={[6, 0.5, 6]} type="static" color="#00ffff" />
+            <Platform position={[60, 4.5, -148]} scale={[6, 0.5, 6]} type="static" color="#ff00ff" />
 
-            {/* ---- PHASE 5: ZERO-DAY FINISH (-167 to -205) ---- */}
-            <GlitchPlatform position={[-4, 13, -180]} scale={[6, 0.5, 6]} interval={1500} duration={800} color="#00ffff" />
-            <GlitchPlatform position={[4, 14, -190]} scale={[6, 0.5, 6]} interval={1500} duration={800} color="#ff00ff" />
-            <Platform position={[0, 13.5, -205]} scale={[18, 1, 18]} type="static" color="#0a0a1a" />
+            {/* 11. Final Portal Platform */}
+            <Platform position={[60, 4.5, -165]} scale={[12, 1, 16]} type="static" color="#111133" />
 
-            {/* Victory Portal */}
-            <group position={[0, 16, -205]}>
+            {/* Gateway Visual Portal */}
+            <group position={[60, 7.5, -170]}>
                 <mesh ref={portalRef}>
-                    <torusGeometry args={[3, 0.15, 16, 100]} />
-                    <meshStandardMaterial color="#ff00ff" emissive="#ff00ff" emissiveIntensity={5} toneMapped={false} />
+                    <torusGeometry args={[3.5, 0.2, 16, 100]} />
+                    <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={3} toneMapped={false} />
                 </mesh>
-                <Text position={[0, 0, 0]} fontSize={1.2} color="#00ffff">FINISH</Text>
+                <mesh position={[0, 0, 0]}>
+                    <cylinderGeometry args={[3.5, 3.5, 0.1, 32]} />
+                    <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={1} opacity={0.6} transparent rotation={[Math.PI / 2, 0, 0]} />
+                </mesh>
             </group>
 
+            {/* Player Component */}
             {!hidePlayer && (
                 <Player
                     ref={playerRef}

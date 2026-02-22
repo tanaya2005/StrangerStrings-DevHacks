@@ -253,7 +253,7 @@ async function distributeTrophies(io, roomId, room) {
     // 2. Process eliminated players (Participation)
     for (const socketId in room.players) {
         const player = room.players[socketId];
-        if (player.eliminated && !room.finishedOrder.includes(socketId)) {
+        if (!room.finishedOrder.includes(socketId)) {
             const xpEarned = XP_REWARDS.participation;
             try {
                 const user = await User.findOne({ username: player.name });
@@ -917,9 +917,13 @@ export function registerGameSocket(io) {
                 finishedOrder: room.finishedOrder,
             });
 
-            // Check if all non-eliminated players have finished
+            // Check if all non-eliminated players have finished OR if half the room has finished
+            const totalPlayersCount = Object.keys(room.players).length;
+            const finishedCount = room.finishedOrder.length;
+            const requiredToFinish = Math.max(1, Math.ceil(totalPlayersCount / 2));
+
             const activePlayers = Object.values(room.players).filter(p => !p.eliminated);
-            const allFinished = activePlayers.every(p => p.finished);
+            const allFinished = activePlayers.every(p => p.finished) || (totalPlayersCount > 1 && finishedCount >= requiredToFinish);
 
             if (allFinished) {
                 room.gameState = "finished";

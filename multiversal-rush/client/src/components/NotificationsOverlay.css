@@ -1,0 +1,162 @@
+.notifications-overlay-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    /* highest */
+    display: flex;
+    justify-content: flex-end;
+    /* Slides from right */
+}
+
+.notifications-overlay-panel {
+    background: rgba(10, 18, 40, 0.95);
+    border-left: 2px solid rgba(0, 255, 224, 0.3);
+    width: 400px;
+    max-width: 90vw;
+    height: 100vh;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    animation: slideInRight 0.3s cubic-bezier(0.175, 0.885, 0.32, 1);
+    box-shadow: -10px 0 50px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+.notif-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 16px;
+}
+
+.notif-header h2 {
+    font-family: 'Orbitron', sans-serif;
+    color: #fff;
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: 2px;
+}
+
+.btn-close-notif {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notif-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.notif-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 4px solid #00ffe0;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    animation: fadeInThis 0.4s ease;
+}
+
+@keyframes fadeInThis {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.type-friend_request {
+    border-color: #a862ff;
+}
+
+.type-friend_accepted {
+    border-color: #00c8a0;
+}
+
+.type-room_invite {
+    border-color: #ffd700;
+}
+
+.type-broadcast {
+    border-color: #ff4d6d;
+}
+
+.type-info {
+    border-color: #aaa;
+}
+
+.notif-icon {
+    font-size: 1.8rem;
+}
+
+.notif-content {
+    flex: 1;
+}
+
+.notif-content p {
+    margin: 0;
+    color: #fff;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    font-family: 'Exo 2', sans-serif;
+}
+
+.btn-notif-action {
+    background: #00ffe0;
+    color: #000;
+    font-weight: bold;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-notif-action:hover {
+    background: #00c8a0;
+}
+
+.btn-notif-dismiss {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    border: none;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    cursor: pointer;
+}
+
+.btn-notif-dismiss:hover {
+    color: #fff;
+}
