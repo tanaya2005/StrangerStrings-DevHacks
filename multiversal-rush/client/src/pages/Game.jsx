@@ -95,9 +95,20 @@ export default function Game() {
             console.log("[Game] startGame received, map:", map);
             setStartTime(startTime);
             setGameState("playing");
-            setCurrentWorld(1);
             setEliminated(false);
             setPlayers(players);
+
+            // Map the map id → the world number that each map's Player emits
+            // This MUST match the world={N} prop in each World component
+            const MAP_WORLD_NUM = {
+                frozenfrenzy: 7,
+                lavahell: 5,
+                honeycomb: 3,
+                neonparadox: 4,
+                cryovoid: 3,
+            };
+            setCurrentWorld(MAP_WORLD_NUM[map] ?? 1);
+
             if (map) {
                 setPhase(map);
                 setSelectedMap(null);
