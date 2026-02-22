@@ -86,7 +86,20 @@ export default React.forwardRef(function PlayerCryo({
         get velocityXZ() { return velocityXZ.current; },
         get position() { return playerRef.current?.position; },
         get speedMultiplier() { return speedMultiplier.current; },
-        set speedMultiplier(v) { speedMultiplier.current = v; }
+        set speedMultiplier(v) { speedMultiplier.current = v; },
+
+        /**
+         * Apply an external impulse force (e.g. snowball knockback, wind push).
+         * The force is added to the player's velocity and decays naturally.
+         * @param {number} fx - force X component
+         * @param {number} fy - force Y component (positive = up)
+         * @param {number} fz - force Z component
+         */
+        applyForce(fx, fy, fz) {
+            externalForce.current.x += fx;
+            velocityY.current += fy;     // Y is separate (gravity system)
+            externalForce.current.z += fz;
+        },
     }));
 
     const keys = useKeyboard();
@@ -98,10 +111,14 @@ export default React.forwardRef(function PlayerCryo({
     const isGrounded = useRef(false);
     const currentOnIce = useRef(false);
 
-    // Reusable vectors ÔÇö avoid GC pressure during game loop
+    // Reusable vectors — avoid GC pressure during game loop
     const direction = useRef(new THREE.Vector3());
     const targetCameraPos = useRef(new THREE.Vector3());
     const cameraOffset = useRef(new THREE.Vector3(0, 4, 8));
+
+    // External impulse force (applied by snowballs, wind, etc.)
+    // Decays each frame — no cleanup needed
+    const externalForce = useRef(new THREE.Vector3());
 
     // Multiplayer emit throttle (Varun)
     const lastEmitRef = useRef(0);
@@ -116,6 +133,14 @@ export default React.forwardRef(function PlayerCryo({
         const pos = playerRef.current.position;
 
         // ---- 1. Movement & Momentum ----
+        // Apply & decay any external impulse force (knockback, wind, etc.)
+        if (externalForce.current.lengthSq() > 0.001) {
+            velocityXZ.current.add(externalForce.current);
+            externalForce.current.multiplyScalar(0.75); // decay — snappy but brief
+        } else {
+            externalForce.current.set(0, 0, 0); // clamp tiny residuals
+        }
+
         direction.current.set(0, 0, 0);
         if (keys.current.w || keys.current.arrowup) direction.current.z -= 1;
         if (keys.current.s || keys.current.arrowdown) direction.current.z += 1;

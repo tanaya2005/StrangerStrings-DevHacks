@@ -13,7 +13,7 @@ import WindZone from '../Obstacles/WindZone';
 import FrostbiteZone from '../Obstacles/FrostbiteZone';
 import { aabbCollision } from '../../utils/collision';
 
-export default function WorldCryoVoid({ emitMove, emitFinished, emitFell, emitAchievement }) {
+export default function WorldCryoVoid({ emitMove, emitFinished, emitFell, emitAchievement, hidePlayer = false }) {
     const playerRef = useRef();
     const portalRef = useRef();
 
@@ -190,16 +190,18 @@ export default function WorldCryoVoid({ emitMove, emitFinished, emitFell, emitAc
             </group>
 
             {/* ---- Player ---- */}
-            <PlayerCryo
-                ref={playerRef}
-                emitMove={emitMove}
-                emitFell={emitFell}
-                emitAchievement={emitAchievement}
-                emitWorldTransition={() => { }}
-                world={6}
-                startPosition={[0, 1, 0]}
-                platforms={activePlatforms}
-            />
+            {!hidePlayer && (
+                <PlayerCryo
+                    ref={playerRef}
+                    emitMove={emitMove}
+                    emitFell={emitFell}
+                    emitAchievement={emitAchievement}
+                    emitWorldTransition={() => { }}
+                    world={6}
+                    startPosition={[0, 1, 0]}
+                    platforms={activePlatforms}
+                />
+            )}
         </>
     );
 }

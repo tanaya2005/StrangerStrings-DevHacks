@@ -20,7 +20,7 @@ function HexTile({ position, status }) {
     );
 }
 
-export default function Honeycomb({ emitMove, emitWorldTransition, emitFell, emitEliminated, emitAchievement }) {
+export default function Honeycomb({ emitMove, emitWorldTransition, emitFell, emitEliminated, emitAchievement, hidePlayer = false }) {
     const [tiles, setTiles] = useState([]);
     const [eliminated, setEliminated] = useState(false);
     const eliminatedRef = useRef(false);  // prevent double-fire
@@ -57,6 +57,7 @@ export default function Honeycomb({ emitMove, emitWorldTransition, emitFell, emi
     }, []);
 
     const handleTileTouch = (id) => {
+        if (hidePlayer) return; // Spectators don't trigger tile drops
         setTiles((prev) => {
             const newTiles = [...prev];
             const tileIndex = newTiles.findIndex(t => t.id === id);
@@ -92,7 +93,7 @@ export default function Honeycomb({ emitMove, emitWorldTransition, emitFell, emi
             ))}
 
             {/* Stop rendering player once eliminated */}
-            {!eliminated && (
+            {!eliminated && !hidePlayer && (
                 <Player
                     emitMove={emitMove}
                     emitFell={emitFell}

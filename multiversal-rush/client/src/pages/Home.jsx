@@ -30,6 +30,7 @@ export default function Home() {
     const [showSettings, setShowSettings] = useState(false);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
     const [showShop, setShowShop] = useState(false);
+    const [showPlayModal, setShowPlayModal] = useState(false);
 
     useEffect(() => {
         async function fetchInitialData() {
@@ -67,7 +68,9 @@ export default function Home() {
         fetchInitialData();
     }, [user, setLeaderboard, setGems, setOwnedAvatars, setAvatar]);
 
-    const handlePlayNow = () => navigate("/lobby");
+    const handlePlayNow = () => setShowPlayModal(true);
+    const handleSoloPlay = () => { setShowPlayModal(false); navigate("/lobby"); };
+    const handleTeamPlay = () => { setShowPlayModal(false); navigate("/team-join"); };
     const handleAchievements = () => navigate("/achievements");
     const handleFriends = () => navigate("/friends");
     const handleSettings = () => setShowSettings(true);
@@ -162,6 +165,30 @@ export default function Home() {
                     PLAY NOW
                 </button>
             </div>
+
+            {/* ── Play Mode Selection Modal ── */}
+            {showPlayModal && (
+                <div className="play-modal-backdrop" onClick={() => setShowPlayModal(false)}>
+                    <div className="play-modal" onClick={(e) => e.stopPropagation()}>
+                        <button className="play-modal-close" onClick={() => setShowPlayModal(false)}>✕</button>
+                        <h2 className="play-modal-title">CHOOSE YOUR MODE</h2>
+                        <div className="play-modal-options">
+                            <button className="play-mode-btn play-mode-solo" onClick={handleSoloPlay} id="btn-solo-mode">
+                                <div className="play-mode-icon">🏃</div>
+                                <div className="play-mode-label">SOLO</div>
+                                <div className="play-mode-desc">Race through obstacle gauntlets</div>
+                                <div className="play-mode-tag">Classic Mode</div>
+                            </button>
+                            <button className="play-mode-btn play-mode-team" onClick={handleTeamPlay} id="btn-team-mode">
+                                <div className="play-mode-icon">🏁</div>
+                                <div className="play-mode-label">TEAM</div>
+                                <div className="play-mode-desc">Multiversal Relay — 3v3 team race</div>
+                                <div className="play-mode-tag play-mode-tag-new">NEW</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Overlays */}
             {showSettings && (

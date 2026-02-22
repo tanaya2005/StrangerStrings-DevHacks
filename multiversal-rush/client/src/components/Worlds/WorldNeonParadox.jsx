@@ -19,7 +19,7 @@ import {
  * World: Neon Paradox Sector
  * Theme: Glitch + Cyberpunk City
  */
-export default function WorldNeonParadox({ emitMove, emitFinished, emitFell, emitWorldTransition }) {
+export default function WorldNeonParadox({ emitMove, emitFinished, emitFell, emitWorldTransition, hidePlayer = false }) {
     const portalRef = useRef();
     const playerRef = useRef();
 
@@ -163,14 +163,16 @@ export default function WorldNeonParadox({ emitMove, emitFinished, emitFell, emi
                 <Text position={[0, 0, 0]} fontSize={1.2} color="#00ffff">FINISH</Text>
             </group>
 
-            <Player
-                ref={playerRef}
-                emitMove={emitMove}
-                emitFell={emitFell}
-                emitWorldTransition={() => emitFinished?.()}
-                world={4}
-                startPosition={[0, 2, 0]}
-            />
+            {!hidePlayer && (
+                <Player
+                    ref={playerRef}
+                    emitMove={emitMove}
+                    emitFell={emitFell}
+                    emitWorldTransition={() => emitFinished?.()}
+                    world={1}
+                    startPosition={[0, 2, 0]}
+                />
+            )}
         </>
     );
 }

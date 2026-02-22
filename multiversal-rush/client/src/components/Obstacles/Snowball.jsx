@@ -42,14 +42,22 @@ export default function Snowball({
         );
 
         if (collided) {
-            // Apply knockback
-            playerRef.current.position.z += 1.8;
-            playerRef.current.position.y += 0.6;
-            if (playerRef.current.velocityXZ) {
-                playerRef.current.velocityXZ.multiplyScalar(0.2);
-            }
+            // Calculate impact vector: direction from snowball to player
+            const impactX = playerPos.x - worldPos.x;
+            const impactZ = playerPos.z - worldPos.z;
+            const len = Math.sqrt(impactX * impactX + impactZ * impactZ) || 1;
+            // Normalize then scale by snowball size — bigger snowballs hit harder
+            const force = 6 + size * 2;
+            const fx = (impactX / len) * force;
+            const fz = (impactZ / len) * force;
+            const fy = 3.5; // always bumps the player upward a little
+
+            // Use the new applyForce API (safe — no-op if not available)
+            playerRef.current.applyForce?.(fx, fy, fz);
+
             setActive(false);
-            console.log("❄️ Target hit! Cannon snowball collided.");
+            onComplete?.(id);
+            console.log(`❄️ Snowball hit! force=(${fx.toFixed(1)}, ${fy}, ${fz.toFixed(1)})`);
         }
 
         // Off-map reset (local distance)

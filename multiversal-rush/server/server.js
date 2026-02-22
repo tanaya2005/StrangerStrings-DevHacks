@@ -15,6 +15,7 @@ import achievementRoutes from "./routes/achievementRoutes.js";
 import { registerGameSocket } from "./socket/gameSocket.js";
 import { attachChat } from "./socket/chat.js";
 import { attachFriendSocket } from "./socket/friendSocket.js";
+import { registerRelaySocket } from "./socket/relayLogic.js";
 import friendRoutes from "./routes/friendRoutes.js";
 import shopRoutes from "./routes/shopRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
@@ -86,6 +87,7 @@ const io = new Server(httpServer, {
 const { rooms } = registerGameSocket(io);
 attachChat(io);
 attachFriendSocket(io);
+const { relayRooms } = registerRelaySocket(io);
 
 // Wire live rooms map into admin controller
 initAdminController(rooms, io);

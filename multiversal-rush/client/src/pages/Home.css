@@ -451,3 +451,213 @@
         padding: 12px;
     }
 }
+
+/* ============================================================
+   Play Mode Selection Modal
+   ============================================================ */
+.play-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.play-modal {
+    background: rgba(10, 18, 40, 0.92);
+    border: 1px solid rgba(0, 200, 160, 0.25);
+    border-radius: 20px;
+    padding: 40px 36px 36px;
+    max-width: 560px;
+    width: 90%;
+    position: relative;
+    backdrop-filter: blur(20px);
+    box-shadow:
+        0 25px 60px rgba(0, 0, 0, 0.6),
+        0 0 80px rgba(0, 200, 160, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    animation: modalSlideIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: scale(0.85) translateY(30px);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+.play-modal-close {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.play-modal-close:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.play-modal-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 900;
+    text-align: center;
+    letter-spacing: 4px;
+    background: linear-gradient(90deg, #00ffe0, #a862ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0 0 28px;
+}
+
+.play-modal-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.play-mode-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 28px 20px 20px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    overflow: hidden;
+}
+
+.play-mode-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.35s;
+    z-index: 0;
+}
+
+.play-mode-solo::before {
+    background: radial-gradient(ellipse at center, rgba(0, 200, 160, 0.12) 0%, transparent 70%);
+}
+
+.play-mode-team::before {
+    background: radial-gradient(ellipse at center, rgba(255, 120, 50, 0.12) 0%, transparent 70%);
+}
+
+.play-mode-btn:hover::before {
+    opacity: 1;
+}
+
+.play-mode-btn:hover {
+    transform: translateY(-5px) scale(1.03);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+.play-mode-solo:hover {
+    border-color: rgba(0, 200, 160, 0.5);
+}
+
+.play-mode-team:hover {
+    border-color: rgba(255, 120, 50, 0.5);
+}
+
+.play-mode-icon {
+    font-size: 3rem;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
+.play-mode-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #fff;
+    position: relative;
+    z-index: 1;
+}
+
+.play-mode-desc {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.45);
+    text-align: center;
+    line-height: 1.4;
+    position: relative;
+    z-index: 1;
+}
+
+.play-mode-tag {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 4px 12px;
+    border-radius: 20px;
+    position: relative;
+    z-index: 1;
+}
+
+.play-mode-tag-new {
+    background: linear-gradient(135deg, #ff6644, #ff4444);
+    color: #fff;
+    animation: tagGlow 2s ease-in-out infinite;
+}
+
+@keyframes tagGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 8px rgba(255, 68, 68, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 16px rgba(255, 68, 68, 0.6);
+    }
+}
+
+@media (max-width: 500px) {
+    .play-modal-options {
+        grid-template-columns: 1fr;
+    }
+
+    .play-modal {
+        padding: 28px 20px 24px;
+    }
+}

@@ -15,6 +15,9 @@ import WorldTest from "./pages/WorldTest";
 import Achievements from "./pages/Achievements";
 import LoadingScreen from "./components/LoadingScreen";
 import GlobalLayout from "./components/Layout/GlobalLayout";
+import TeamRoomJoin from "./pages/TeamRoomJoin";
+import TeamLobby from "./pages/TeamLobby";
+import RelayGame from "./pages/RelayGame";
 
 /** Read token from localStorage — called on every render */
 function isLoggedIn() {
@@ -118,6 +121,32 @@ export default function App() {
           element={
             <PrivateRoute>
               <Friends />
+            </PrivateRoute>
+          }
+        />
+
+        {/* ── Multiversal Relay (Team Mode) Routes ── */}
+        <Route
+          path="/team-join"
+          element={
+            <PrivateRoute>
+              <TeamRoomJoin />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/team-lobby/:roomId"
+          element={
+            <PrivateRoute>
+              <TeamLobby />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/relay-game/:roomId"
+          element={
+            <PrivateRoute>
+              <RelayGame />
             </PrivateRoute>
           }
         />

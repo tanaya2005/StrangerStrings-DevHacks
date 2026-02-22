@@ -26,7 +26,7 @@ import {
     SnowParticles
 } from '../Environment/FrozenFrenzyComponents';
 
-export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, emitWorldTransition }) {
+export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, emitWorldTransition, hidePlayer = false }) {
     const playerRef = useRef();
     const [eliminated, setEliminated] = useState(false);
 
@@ -99,8 +99,8 @@ export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, em
             {/* Snow Start (not slippery — normal control to start) */}
             <Platform position={[0, -0.5, -5]} scale={[30, 1, 20]} type="static" color="#ffffff" />
 
-            {/* Open Ice Field — wide, slippery, scattered bumpers */}
-            <Platform position={[0, -0.25, -42]} scale={[28, 0.5, 55]} type="static" color="#b3e5fc" isSlippery={true} />
+            {/* Open Ice Field — extended to Z:-72 so it butts up against Phase 2 */}
+            <Platform position={[0, -0.25, -40]} scale={[28, 0.5, 70]} type="static" color="#b3e5fc" isSlippery={true} />
 
             {/* Scattered ice bumpers — natural multiplayer collision points */}
             {[
@@ -125,8 +125,8 @@ export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, em
                 Rule: at least 1 clear lane at all times.
             ═══════════════════════════════════════════════════ */}
 
-            {/* Gauntlet Surface */}
-            <Platform position={[0, -0.25, -112]} scale={[22, 0.5, 85]} type="static" color="#81d4fa" isSlippery={true} />
+            {/* Gauntlet Surface — extended to Z:-72 to close Phase 1→2 gap */}
+            <Platform position={[0, -0.25, -113]} scale={[22, 0.5, 90]} type="static" color="#81d4fa" isSlippery={true} />
 
             {/* Cannon Zone A — 2 cannons, staggered 1.5s apart */}
             {/* Cannon 1: Left side, large ball, slow */}
@@ -200,16 +200,17 @@ export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, em
                 Approach (W:5) → Core (W:4) → Recovery (W:12).
             ═══════════════════════════════════════════════════ */}
 
-            {/* Approach bridge — slightly wider than tunnel, eases players in */}
-            <Platform position={[0, 1, -162]} scale={[5, 0.5, 15]} type="static" color="#b2ebf2" isSlippery={true} />
+            {/* Approach bridge — wider and starts 5u earlier to close Phase 2→3 gap */}
+            <Platform position={[0, 1, -159]} scale={[7, 0.5, 20]} type="static" color="#b2ebf2" isSlippery={true} />
 
-            {/* Wind Tunnel Core — WindBridge handles physics + wind text */}
+            {/* Wind Tunnel Core — WindBridge handles physics + wind drag */}
             <WindBridge
                 id="wind_bridge_main"
                 position={[0, 1, -190]}
+                playerRef={playerRef}
             />
 
-            {/* Exit recovery platform — snow (not slippery) to let players stabilise */}
+            {/* Exit recovery platform */}
             <Platform position={[0, 1, -210]} scale={[12, 0.5, 8]} type="static" color="#ffffff" />
 
             <Text position={[0, 10, -190]} fontSize={0.6} color="#0097a7" anchorX="center">
@@ -276,14 +277,16 @@ export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, em
             />
 
             {/* ── Local Player (Cryo physics for ice/slide feel) ── */}
-            <PlayerCryo
-                ref={playerRef}
-                emitMove={emitMove}
-                emitFell={emitFell}
-                emitWorldTransition={() => { }}
-                world={7}
-                startPosition={[0, 2, 0]}
-            />
+            {!hidePlayer && (
+                <PlayerCryo
+                    ref={playerRef}
+                    emitMove={emitMove}
+                    emitFell={emitFell}
+                    emitWorldTransition={() => { }}
+                    world={7}
+                    startPosition={[0, 2, 0]}
+                />
+            )}
         </>
     );
 }

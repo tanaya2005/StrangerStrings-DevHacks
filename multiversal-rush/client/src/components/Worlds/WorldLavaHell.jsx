@@ -225,7 +225,7 @@ function RollingBoulder({ startPos, endPos, speed = 6 }) {
 // ============================================================
 //  MAIN WORLD
 // ============================================================
-export default function WorldLavaHell({ emitMove, emitFinished, emitFell, emitAchievement, emitWorldTransition }) {
+export default function WorldLavaHell({ emitMove, emitFinished, emitFell, emitAchievement, emitWorldTransition, hidePlayer = false }) {
     const playerRef = useRef();
     const portalRef = useRef();
     const geyserPlatsRef = useRef({});
@@ -469,16 +469,18 @@ export default function WorldLavaHell({ emitMove, emitFinished, emitFell, emitAc
             </group>
 
             {/* ---- PLAYER ---- */}
-            <PlayerCryo
-                ref={playerRef}
-                emitMove={emitMove}
-                emitFell={emitFell}
-                emitAchievement={emitAchievement}
-                emitWorldTransition={() => { }}
-                world={5}
-                startPosition={[0, 2, 0]}
-                platforms={staticPlatforms}
-            />
+            {!hidePlayer && (
+                <PlayerCryo
+                    ref={playerRef}
+                    emitMove={emitMove}
+                    emitFell={emitFell}
+                    emitAchievement={emitAchievement}
+                    emitWorldTransition={() => { }}
+                    world={5}
+                    startPosition={[0, 2, 0]}
+                    platforms={staticPlatforms}
+                />
+            )}
         </>
     );
 }
