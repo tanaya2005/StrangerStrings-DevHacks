@@ -10,11 +10,14 @@ import { Server } from "socket.io";
 import connectDB from "./config/db.js";
 import leaderboardRoutes from "./routes/leaderboardRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-import voiceRoutes from "./routes/voiceRoutes.js";     // archit2 — LiveKit token
+import voiceRoutes from "./routes/voiceRoutes.js";
 import { registerGameSocket } from "./socket/gameSocket.js";
 import { attachChat } from "./socket/chat.js";
 import { attachFriendSocket } from "./socket/friendSocket.js";
 import friendRoutes from "./routes/friendRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import { initAdminController } from "./controllers/adminController.js";
+import User from "./models/User.js";
 
 // Load environment variables
 dotenv.config({ override: true });
@@ -32,7 +35,7 @@ const app = express();
 app.use(express.json());
 app.use(cors({
     origin: allowedOrigins,
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "DELETE", "PATCH"],
     credentials: true,
 }));
 
@@ -41,6 +44,22 @@ app.use("/api/auth", authRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/voice", voiceRoutes);
 app.use("/api/friends", friendRoutes);
+app.use("/api/admin", adminRoutes);   // 🔒 Admin panel API
+
+// Banned user check — any authenticated request
+app.use(async (req, res, next) => {
+    // Only check player routes (not admin)
+    if (req.path.startsWith("/api/admin")) return next();
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) return next();
+    try {
+        const jwt = await import("jsonwebtoken");
+        const decoded = jwt.default.verify(authHeader.split(" ")[1], process.env.JWT_SECRET || "multiversal_secret_change_me");
+        const user = await User.findById(decoded.id).select("banned");
+        if (user?.banned) return res.status(403).json({ error: "Account banned. Contact admin." });
+        next();
+    } catch { next(); }
+});
 
 // Health check
 app.get("/", (req, res) => res.send("Multiversal Rush Server ✅"));
@@ -59,9 +78,12 @@ const io = new Server(httpServer, {
     pingInterval: 25000,
 });
 
-registerGameSocket(io);
+const { rooms } = registerGameSocket(io);
 attachChat(io);
-attachFriendSocket(io);   // real-time friends: presence, DMs, room invites
+attachFriendSocket(io);
+
+// Wire live rooms map into admin controller
+initAdminController(rooms, io);
 
 console.log("✅ LiveKit voice enabled (cloud SFU — no local server needed)");
 

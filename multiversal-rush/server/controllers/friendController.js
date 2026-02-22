@@ -49,8 +49,9 @@ export async function sendRequest(req, res) {
         if (!toUsername) return res.status(400).json({ error: "toUsername is required" });
 
         const me = await User.findById(req.userId);
-        const target = await User.findOne({ username: toUsername })
-            .select("_id username friends friendRequests");
+        const target = await User.findOne({
+            username: { $regex: new RegExp(`^${toUsername}$`, "i") }
+        }).select("_id username friends friendRequests");
 
         if (!target) return res.status(404).json({ error: "User not found" });
         if (toStr(target._id) === toStr(req.userId)) {

@@ -5,6 +5,7 @@
 
 import User from "../models/User.js";
 import Message from "../models/Message.js";
+import Game from "../models/Game.js";
 
 /**
  * In-memory room store.
@@ -239,6 +240,50 @@ async function distributeTrophies(io, roomId, room) {
 }
 
 /**
+ * Save a completed game to MongoDB.
+ */
+async function saveGameRecord(roomId, room) {
+    try {
+        const allPlayers = Object.values(room.players);
+        const finishedOrder = room.finishedOrder || [];
+        const endedAt = new Date();
+        const startedAt = room.gameStartedAt ? new Date(room.gameStartedAt) : new Date(Date.now() - (room.startTime || 0));
+
+        const playerResults = allPlayers.map(p => {
+            const place = finishedOrder.indexOf(p.id);
+            return {
+                socketId: p.id,
+                username: p.name,
+                place: place >= 0 ? place + 1 : null,
+                eliminated: p.eliminated || false,
+                finishTime: p.finishTime || null,
+                trophiesEarned: place >= 0 ? (TROPHY_REWARDS[place + 1] || 0) : 0,
+            };
+        });
+
+        const winner = allPlayers.find(p => !p.eliminated && p.finished &&
+            room.finishedOrder[0] === p.id);
+
+        await Game.findOneAndUpdate(
+            { roomId, status: "in_progress" },
+            {
+                $set: {
+                    status: "completed",
+                    endedAt,
+                    durationMs: endedAt - startedAt,
+                    players: playerResults,
+                    winnerUsername: winner?.name || null,
+                }
+            },
+            { new: true }
+        );
+        console.log(`[Game] Saved record for room ${roomId}`);
+    } catch (err) {
+        console.error("[saveGameRecord] Error:", err);
+    }
+}
+
+/**
  * After every elimination / finish check, see if only 1 player is left
  * un-eliminated and un-finished → they become the winner.
  */
@@ -269,6 +314,8 @@ async function checkElimination(io, roomId, room) {
 
         // Distribute trophies and show match results
         await distributeTrophies(io, roomId, room);
+        // Save to DB
+        await saveGameRecord(roomId, room);
 
         // After 10 seconds, reset room
         setTimeout(() => {
@@ -284,6 +331,8 @@ async function checkElimination(io, roomId, room) {
 
         // Distribute trophies even if all eliminated
         await distributeTrophies(io, roomId, room);
+        // Save to DB
+        await saveGameRecord(roomId, room);
 
         // After 10 seconds, reset room
         setTimeout(() => {
@@ -305,6 +354,7 @@ function dmRoom(idA, idB) {
 
 // ============================================================
 //  Main export – call this once in server.js
+//  Returns { rooms } so admin controller can access live state.
 // ============================================================
 export function registerGameSocket(io) {
 
@@ -373,6 +423,29 @@ export function registerGameSocket(io) {
         });
 
         // --------------------------------------------------------
+        //  sendRoomInvite
+        //  { toUsername, roomCode }
+        //  Finds the target socket (if online) and forwards the invite.
+        // --------------------------------------------------------
+        socket.on("sendRoomInvite", ({ toUsername, roomCode }) => {
+            if (!toUsername || !roomCode) return;
+            const fromName = socket.data.playerName || "Someone";
+
+            // Search all connected sockets for one with matching playerName
+            // (same socket.data.playerName set on joinRoom)
+            const allSockets = io.sockets.sockets;
+            let delivered = false;
+            for (const [, s] of allSockets) {
+                if (s.data.playerName?.toLowerCase() === toUsername.toLowerCase() && s.id !== socket.id) {
+                    s.emit("roomInvite", { fromName, roomCode });
+                    delivered = true;
+                    break;
+                }
+            }
+            console.log(`[Invite] ${fromName} → ${toUsername}: room ${roomCode} — delivered: ${delivered}`);
+        });
+
+        // --------------------------------------------------------
         //  joinRoom
         //  Client sends: { roomId, playerName }
         //  Server responds: roomJoined | roomFull | roomError
@@ -433,8 +506,9 @@ export function registerGameSocket(io) {
                     players: getPlayerList(room),
                 });
 
-                // Store roomId on the socket so we can clean up on disconnect
+                // Store roomId + playerName on socket for cleanup & invite lookup
                 socket.data.roomId = roomId;
+                socket.data.playerName = playerName;
 
             } catch (err) {
                 console.error("[joinRoom error]", err);
@@ -496,8 +570,18 @@ export function registerGameSocket(io) {
                         // Start the game
                         room.gameState = "playing";
                         room.startTime = Date.now();
+                        room.gameStartedAt = Date.now();
 
                         console.log(`[Room ${roomId}] Lobby countdown done – starting map: ${room.selectedMap}`);
+
+                        // Create a Game record in MongoDB now the map is starting
+                        Game.create({
+                            roomId,
+                            map: room.selectedMap,
+                            status: "in_progress",
+                            startedAt: new Date(),
+                            players: Object.values(room.players).map(p => ({ socketId: p.id, username: p.name })),
+                        }).catch(err => console.error("[Game.create]", err));
 
                         io.to(roomId).emit("startGame", {
                             map: room.selectedMap,
@@ -808,5 +892,8 @@ export function registerGameSocket(io) {
         });
 
     }); // end io.on("connection")
+
+    // Return rooms so admin controller can read live state
+    return { rooms };
 
 } // end registerGameSocket
