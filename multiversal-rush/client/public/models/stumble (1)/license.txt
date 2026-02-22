@@ -1,0 +1,11 @@
+Model Information:
+* title:	Stumble
+* source:	https://sketchfab.com/3d-models/stumble-d0cf34d83653470dbecbeab33a495231
+* author:	dimspur18 (https://sketchfab.com/dimspur18)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Stumble" (https://sketchfab.com/3d-models/stumble-d0cf34d83653470dbecbeab33a495231) by dimspur18 (https://sketchfab.com/dimspur18) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

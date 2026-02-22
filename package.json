@@ -1,8 +1,9 @@
 {
     "name": "strangerstrings-devhacks",
+    "version": "1.0.0",
     "private": true,
-    "dependencies": {
-        "node-fetch": "^3.3.2",
-        "socket.io-client": "^4.8.3"
+    "license": "MIT",
+    "scripts": {
+        "build": "cd multiversal-rush/client && npm install && npm run build"
     }
 }

@@ -6,6 +6,7 @@ import socket from "../socket/socket";
 import HomeAvatar3D from "../components/HomeAvatar3D";
 import SettingsOverlay from "../components/SettingsOverlay";
 import LeaderboardOverlay from "../components/LeaderboardOverlay";
+import ShopOverlay from "../components/ShopOverlay";
 import "./Home.css";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
@@ -17,15 +18,24 @@ export default function Home() {
     const leaderboard = useStore((s) => s.leaderboard);
     const setLeaderboard = useStore((s) => s.setLeaderboard);
 
+    // Shop state
+    const gems = useStore((s) => s.gems);
+    const setGems = useStore((s) => s.setGems);
+    const setOwnedAvatars = useStore((s) => s.setOwnedAvatars);
+    const setAvatar = useStore((s) => s.setAvatar);
+
     const avatar = useStore((s) => s.avatar);
     const [userRank, setUserRank] = useState(0);
     const [userTrophies, setUserTrophies] = useState(0);
     const [showSettings, setShowSettings] = useState(false);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
+    const [showShop, setShowShop] = useState(false);
 
     useEffect(() => {
-        async function fetchLeaderboard() {
+        async function fetchInitialData() {
+            const token = localStorage.getItem("mr_token");
             try {
+                // 1. Leaderboard & Stats
                 const lbRes = await fetch(`${SERVER_URL}/api/leaderboard`);
                 const lbData = await lbRes.json();
                 setLeaderboard(lbData);
@@ -35,19 +45,34 @@ export default function Home() {
 
                 setUserRank(myRank);
                 setUserTrophies(myData?.trophies || 0);
+
+                // 2. Shop & Inventory
+                if (token) {
+                    const shopRes = await fetch(`${SERVER_URL}/api/shop/me`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (shopRes.ok) {
+                        const invData = await shopRes.json();
+                        setGems(invData.gems);
+                        setOwnedAvatars(invData.ownedAvatars);
+                        if (invData.selectedAvatar) {
+                            setAvatar(invData.selectedAvatar);
+                        }
+                    }
+                }
             } catch (err) {
-                console.error("Failed to fetch leaderboard:", err);
+                console.error("Failed to fetch initial home data:", err);
             }
         }
-        fetchLeaderboard();
-    }, [user, setLeaderboard]);
+        fetchInitialData();
+    }, [user, setLeaderboard, setGems, setOwnedAvatars, setAvatar]);
 
     const handlePlayNow = () => navigate("/lobby");
     const handleAchievements = () => navigate("/achievements");
     const handleFriends = () => navigate("/friends");
     const handleSettings = () => setShowSettings(true);
     const handleLeaderboard = () => setShowLeaderboard(true);
-    const handleShop = () => console.log("Shop Clicked");
+    const handleShop = () => setShowShop(true);
 
     const handleLogout = () => {
         if (socket.connected) socket.disconnect();
@@ -96,8 +121,8 @@ export default function Home() {
                             </div>
                             <div className="currency-item gem-count" title="Gems">
                                 <span className="icon">💎</span>
-                                <span className="value">50</span>
-                                <button className="btn-gem-plus">+</button>
+                                <span className="value">{gems.toLocaleString()}</span>
+                                <button className="btn-gem-plus" onClick={handleShop}>+</button>
                             </div>
                         </div>
                         <button className="btn-hud btn-friends" onClick={handleFriends}>
@@ -126,7 +151,7 @@ export default function Home() {
                     <div className="avatar-glow"></div>
                     <div className="avatar-main">
                         <Suspense fallback={<div className="avatar-loading">Loading 3D...</div>}>
-                            <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0, 7], fov: 45 }}>
+                            <Canvas key={avatar} shadows dpr={[1, 2]} camera={{ position: [0, 0, 7], fov: 45 }}>
                                 <HomeAvatar3D modelPath={avatar} />
                             </Canvas>
                         </Suspense>
@@ -148,6 +173,11 @@ export default function Home() {
             {showLeaderboard && (
                 <LeaderboardOverlay
                     onClose={() => setShowLeaderboard(false)}
+                />
+            )}
+            {showShop && (
+                <ShopOverlay
+                    onClose={() => setShowShop(false)}
                 />
             )}
         </div>

@@ -37,6 +37,15 @@ const UserSchema = new mongoose.Schema(
 
         // ---- Game stats ----
         trophies: { type: Number, default: 0 },
+        gems: { type: Number, default: 100 },
+        ownedAvatars: {
+            type: [String],
+            default: ["/models/penguin/scene.gltf", "/models/red-panda/scene.gltf"]
+        },
+        selectedAvatar: {
+            type: String,
+            default: "/models/penguin/scene.gltf"
+        },
         wins: { type: Number, default: 0 },
         gamesPlayed: { type: Number, default: 0 },
         banned: { type: Boolean, default: false },

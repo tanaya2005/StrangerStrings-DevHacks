@@ -1,61 +1,92 @@
-import React, { useRef } from "react";
+import React, { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF, Float, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
+import { useGLTF, Float, Center, Environment, PerspectiveCamera } from "@react-three/drei";
 
 /**
- * A dedicated 3D model component for the Home page.
- * Features a floating animation and slow rotation.
+ * Custom settings for each 3D model to ensure visual consistency.
+ * Adjust these values based on the specific proportions of each model.
  */
-function AvatarModel({ path }) {
-    const { scene } = useGLTF(path);
-    const groupRef = useRef();
+const AVATAR_CONFIG = {
+    "/models/penguin/scene.gltf": {
+        scale: 3,
+        position: [0, 0, 0],
+        rotationSpeed: 0.5,
+        floatIntensity: 0.5
+    },
+    "/models/red-panda/scene.gltf": {
+        scale: 3,
+        position: [0, 0, 0],
+        rotationSpeed: 0.5,
+        floatIntensity: 0.6
+    },
+    "/models/shark/scene.gltf": {
+        scale: 0.8, // Aggressively reduced to fit frame
+        position: [0, 0, 0],
+        rotationSpeed: 0.5,
+        floatIntensity: 0.7
+    },
+    "/models/zoro/scene.gltf": {
+        scale: 2,
+        position: [0, 0, 0],
+        rotationSpeed: 0.5,
+        floatIntensity: 0.3
+    }
+};
+
+const DEFAULT_CONFIG = {
+    scale: 0.5,
+    position: [0, 0, 0],
+    rotationSpeed: 0.5,
+    floatIntensity: 0.5
+};
+
+/**
+ * Normalizes and animates any GLTF model for the Home screen.
+ * Forces all characters to have a consistent visual height and centered pivot.
+ */
+function AvatarWrapper({ modelPath }) {
+    const { scene } = useGLTF(modelPath);
+    const pivotRef = useRef();
+
+    // Get specific settings for this avatar or use defaults
+    const config = AVATAR_CONFIG[modelPath] || DEFAULT_CONFIG;
+
+    // Clone and compute normalization
+    const clonedScene = useMemo(() => scene.clone(), [scene]);
 
     useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        if (groupRef.current) {
-            // Slow rotation for showcase effect
-            groupRef.current.rotation.y = t * 0.5;
+        if (pivotRef.current) {
+            // Precise uniform rotation speed
+            pivotRef.current.rotation.y = state.clock.getElapsedTime() * config.rotationSpeed;
         }
     });
 
-    // Optimize and clean up model for the UI
-    React.useEffect(() => {
-        scene.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-            }
-        });
-    }, [scene]);
-
-    return <primitive ref={groupRef} object={scene} scale={1.5} position={[0, -1.5, 0]} />;
+    return (
+        <group ref={pivotRef}>
+            <Center>
+                <primitive
+                    object={clonedScene}
+                    scale={config.scale}
+                />
+            </Center>
+        </group>
+    );
 }
 
 export default function HomeAvatar3D({ modelPath }) {
+    const config = AVATAR_CONFIG[modelPath] || DEFAULT_CONFIG;
+
     return (
         <>
-            <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={50} />
+            <PerspectiveCamera makeDefault position={[0, 0, 12]} fov={35} />
 
-            {/* Lighting for a high-end feel */}
-            <ambientLight intensity={0.8} />
-            <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1.5} castShadow />
-            <pointLight position={[-10, -10, -10]} intensity={0.5} />
-
-            {/* Environment for reflections on the model */}
             <Environment preset="city" />
+            <ambientLight intensity={0.5} />
+            <spotLight position={[10, 10, 10]} intensity={1.5} penumbra={1} />
 
-            <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
-                <AvatarModel path={modelPath} />
+            <Float speed={1.5} rotationIntensity={0.1} floatIntensity={config.floatIntensity}>
+                <AvatarWrapper modelPath={modelPath} />
             </Float>
-
-            {/* Subtle shadow beneath the model */}
-            <ContactShadows
-                position={[0, -2, 0]}
-                opacity={0.4}
-                scale={10}
-                blur={2}
-                far={4.5}
-            />
         </>
     );
 }

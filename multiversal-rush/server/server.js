@@ -16,6 +16,7 @@ import { registerGameSocket } from "./socket/gameSocket.js";
 import { attachChat } from "./socket/chat.js";
 import { attachFriendSocket } from "./socket/friendSocket.js";
 import friendRoutes from "./routes/friendRoutes.js";
+import shopRoutes from "./routes/shopRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import { initAdminController } from "./controllers/adminController.js";
 import User from "./models/User.js";
@@ -47,6 +48,7 @@ app.use("/api/voice", voiceRoutes);
 app.use("/api/achievements", achievementRoutes);
 app.use("/api/friends", friendRoutes);
 app.use("/api/admin", adminRoutes);   // 🔒 Admin panel API
+app.use("/api/shop", shopRoutes);
 
 // Banned user check — any authenticated request
 app.use(async (req, res, next) => {
