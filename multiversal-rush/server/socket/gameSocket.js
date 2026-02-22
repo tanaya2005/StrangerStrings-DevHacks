@@ -641,9 +641,9 @@ export function registerGameSocket(io) {
             player.ready = !player.ready;
             io.to(roomId).emit("playersUpdated", { players: getPlayerList(room) });
 
-            // Check if ALL players (min 1) are ready
+            // Check if ALL players (min 2) are ready
             const allPlayers = Object.values(room.players);
-            const allReady = allPlayers.length >= 1 && allPlayers.every((p) => p.ready);
+            const allReady = allPlayers.length >= 2 && allPlayers.every((p) => p.ready);
 
             if (allReady && room.gameState === "waiting") {
                 room.gameState = "lobby";  // 3D lobby phase

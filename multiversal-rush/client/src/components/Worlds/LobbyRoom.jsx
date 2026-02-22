@@ -76,34 +76,42 @@ function Ramp({ position, rotation = [0, 0, 0], size = [6, 0.4, 10], color = '#4
 
 export default function LobbyRoom({ emitMove, emitFell, countdownText }) {
     // Platform layout — center room 30×30, walls, decorations
-    const platforms = useMemo(() => [
-        // Main floor
-        { pos: [0, -0.5, 0], size: [40, 1, 40] },
+    const platforms = useMemo(() => {
+        const arr = [
+            // Main floor
+            { pos: [0, -0.5, 0], size: [40, 1, 40] },
 
-        // Raised stage in the center
-        { pos: [0, 0.3, 0], size: [10, 0.6, 10] },
+            // Raised stage in the center
+            { pos: [0, 0.3, 0], size: [10, 0.6, 10] },
 
-        // Left staircase platforms
-        { pos: [-12, 0.3, -5], size: [4, 0.6, 4] },
-        { pos: [-12, 0.9, -8.6], size: [4, 0.6, 3.2] },
-        { pos: [-12, 1.5, -11.8], size: [4, 0.6, 3.2] },
-        { pos: [-12, 2.1, -15], size: [4, 0.6, 3.2] },
+            // Upper walkway behind
+            { pos: [0, 2.7, -15], size: [24, 0.6, 4] },
 
-        // Right staircase platforms
-        { pos: [12, 0.3, -5], size: [4, 0.6, 4] },
-        { pos: [12, 0.9, -8.6], size: [4, 0.6, 3.2] },
-        { pos: [12, 1.5, -11.8], size: [4, 0.6, 3.2] },
-        { pos: [12, 2.1, -15], size: [4, 0.6, 3.2] },
+            // Ramp to walkway (left)
+            { pos: [-9, 1.4, -7], size: [4, 0.4, 9], isSlide: true, rot: [-0.34, 0, 0] },
 
-        // Upper walkway behind
-        { pos: [0, 2.7, -15], size: [24, 0.6, 4] },
+            // Ramp to walkway (right)
+            { pos: [9, 1.4, -7], size: [4, 0.4, 9], isSlide: true, rot: [-0.34, 0, 0] },
+        ];
 
-        // Ramp to walkway (left)
-        { pos: [-8, 1.5, -4], size: [5, 0.5, 8] },
+        // Left Staircase Real Collisions
+        for (let i = 0; i < 8; i++) {
+            arr.push({
+                pos: [-14, 0 + i * 0.35, -3 + i * 0.85],
+                size: [3.5, 0.35, 0.85]
+            });
+        }
 
-        // Ramp to walkway (right)
-        { pos: [8, 1.5, -4], size: [5, 0.5, 8] },
-    ], []);
+        // Right Staircase Real Collisions
+        for (let i = 0; i < 8; i++) {
+            arr.push({
+                pos: [10.75, 0 + i * 0.35, -3 + i * 0.85],
+                size: [3.5, 0.35, 0.85]
+            });
+        }
+
+        return arr;
+    }, []);
 
     return (
         <>

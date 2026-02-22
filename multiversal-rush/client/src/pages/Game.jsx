@@ -118,8 +118,8 @@ export default function Game() {
             setCurrentWorld(MAP_WORLD_NUM[map] ?? 1);
 
             if (map) {
-                setPhase(map);
-                setSelectedMap(null);
+                setPhase("lavahell");
+                setSelectedMap("lavahell");
             }
         });
 
@@ -274,6 +274,7 @@ export default function Game() {
                         emitFell={emitFell}
                         emitAchievement={emitAchievement}
                         emitWorldTransition={emitWorldTransition}
+                        emitEliminated={emitEliminated}
                     />
                 )}
 
