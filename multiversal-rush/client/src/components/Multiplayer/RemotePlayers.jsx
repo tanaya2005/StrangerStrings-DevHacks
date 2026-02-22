@@ -52,11 +52,13 @@ export default function RemotePlayers() {
                     const rot = p.rotation || { y: 0 };
 
                     return (
-                        <group key={p.id} position={[pos.x, pos.y, pos.z]} rotation={[0, rot.y, 0]}>
-                            {/* Player 3D Model */}
-                            <RemotePlayerModel />
+                        <group key={p.id} position={[pos.x, pos.y, pos.z]}>
+                            {/* Player 3D Model - rotated */}
+                            <group rotation={[0, rot.y + Math.PI, 0]}>
+                                <RemotePlayerModel />
+                            </group>
 
-                            {/* Name tag above player */}
+                            {/* Name tag above player - NOT rotated */}
                             <Text
                                 position={[0, 2.2, 0]}
                                 fontSize={0.28}
@@ -69,7 +71,7 @@ export default function RemotePlayers() {
                                 {p.name}
                             </Text>
 
-                            {/* Crown if finished */}
+                            {/* Crown if finished - NOT rotated */}
                             {p.finished && (
                                 <Text
                                     position={[0, 2.6, 0]}

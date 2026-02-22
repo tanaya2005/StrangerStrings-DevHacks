@@ -144,10 +144,12 @@ const Player = React.forwardRef(({
 
         // ---- Character Rotation ----
         // Rotates the model to vividly face the direction of its movement vector
+        let currentFacingAngle = playerRef.current.rotation.y; // Default to current rotation
         if (direction.current.lengthSq() > 0) {
             const targetAngle = Math.atan2(direction.current.x, direction.current.z);
             const targetRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
             playerRef.current.quaternion.slerp(targetRotation, 15 * delta);
+            currentFacingAngle = targetAngle; // Store the actual facing direction
         }
 
         // ---- 3. Jump & gravity ----
@@ -272,7 +274,7 @@ const Player = React.forwardRef(({
             lastEmitRef.current = now;
             emitMove?.({
                 position: { x: pos.x, y: pos.y, z: pos.z },
-                rotation: { y: playerRef.current.rotation.y },
+                rotation: { y: currentFacingAngle },
                 world,
             });
         }

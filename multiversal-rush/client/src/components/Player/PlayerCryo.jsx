@@ -192,10 +192,12 @@ export default React.forwardRef(function PlayerCryo({
         playerRef.current.scale.y = THREE.MathUtils.lerp(playerRef.current.scale.y, targetScale, 10 * delta);
 
         // Character Rotation: Face the direction of velocity
+        let currentFacingAngle = playerRef.current.rotation.y; // Default to current rotation
         if (velocityXZ.current.lengthSq() > 0.1) {
             const targetAngle = Math.atan2(velocityXZ.current.x, velocityXZ.current.z);
             const targetRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
             playerRef.current.quaternion.slerp(targetRotation, 10 * delta);
+            currentFacingAngle = targetAngle; // Store the actual facing direction
         }
 
         // ---- 3. Gravity & Jumping ----
@@ -295,7 +297,7 @@ export default React.forwardRef(function PlayerCryo({
             lastEmitRef.current = now;
 
             const position = { x: pos.x, y: pos.y, z: pos.z };
-            const rotation = { y: playerRef.current.rotation.y };
+            const rotation = { y: currentFacingAngle };
 
             // Update local store so obstacles can see us
             useStore.getState().setMyPosition(position);

@@ -99,6 +99,7 @@ export default function Game() {
             setGameState("playing");
             setEliminated(false);
             setPlayers(players);
+            setMyFinishResult(null); // Clear previous finish result
 
             // Map the map id → the world number that each map's Player emits
             // This MUST match the world={N} prop in each World component:
@@ -118,8 +119,8 @@ export default function Game() {
             setCurrentWorld(MAP_WORLD_NUM[map] ?? 1);
 
             if (map) {
-                setPhase("lavahell");
-                setSelectedMap("lavahell");
+                setPhase(map);
+                setSelectedMap(null);
             }
         });
 
@@ -128,6 +129,7 @@ export default function Game() {
             setPhase("lobby");
             setLobbyTimeLeft(15);
             setSelectedMap(null);
+            setMyFinishResult(null); // Clear finish result
         });
 
         // Return to main lobby (2D Lobby.jsx) after match
@@ -139,6 +141,7 @@ export default function Game() {
             setPhase("lobby");
             setSelectedMap(null);
             setLobbyTimeLeft(15);
+            setMyFinishResult(null); // Clear finish result
             navigate("/");
         });
 
