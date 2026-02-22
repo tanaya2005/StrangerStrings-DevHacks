@@ -101,14 +101,20 @@ export default function Game() {
             setPlayers(players);
 
             // Map the map id → the world number that each map's Player emits
-            // This MUST match the world={N} prop in each World component
+            // This MUST match the world={N} prop in each World component:
+            //   FrozenFrenzyArena  world={7}
+            //   WorldLavaHell      world={5}
+            //   Honeycomb          world={3}
+            //   World1 (neon)      world={1}   ← was wrongly 4
+            //   WorldCryoVoid      world={6}   ← was 3, clashed with honeycomb
             const MAP_WORLD_NUM = {
                 frozenfrenzy: 7,
                 lavahell: 5,
                 honeycomb: 3,
-                neonparadox: 4,
-                cryovoid: 3,
+                neonparadox: 1,  // fixed: World1 uses world={1}
+                cryovoid: 6,     // fixed: unique ID, no longer clashes with honeycomb
             };
+            console.log('[Game] startGame – map:', map, '→ worldNum:', MAP_WORLD_NUM[map] ?? 1);
             setCurrentWorld(MAP_WORLD_NUM[map] ?? 1);
 
             if (map) {
@@ -193,16 +199,13 @@ export default function Game() {
         <div style={{ width: "100vw", height: "100vh", position: "relative", background: "#000" }}>
             {showMatchResults && <MatchResultsOverlay />}
 
-            {/* Achievement unlock popup */}
+            {/* Achievement unlock popup — rendered once */}
             <AchievementPopup />
 
             <HUD
                 emitMethods={{ emitMove, emitWorldTransition, emitFinished, emitFell }}
                 currentLevel={isInLobby ? "hub" : phase}
             />
-
-            {/* Achievement unlock popup */}
-            <AchievementPopup />
 
             {/* Eliminated overlay */}
             {eliminated && !showMatchResults && (

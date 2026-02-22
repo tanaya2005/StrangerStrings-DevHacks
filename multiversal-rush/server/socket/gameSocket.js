@@ -634,6 +634,12 @@ export function registerGameSocket(io) {
                             players: Object.values(room.players).map(p => ({ socketId: p.id, username: p.name })),
                         }).catch(err => console.error("[Game.create]", err));
 
+                        const availableMaps = ["frozenfrenzy", "lavahell", "honeycomb", "neonparadox", "cryovoid"];
+                        const randomMap = availableMaps[Math.floor(Math.random() * availableMaps.length)];
+                        room.selectedMap = randomMap;
+
+                        console.log(`[Room ${roomId}] 🎲 Random map selected: ${randomMap}`);
+
                         io.to(roomId).emit("startGame", {
                             map: room.selectedMap,
                             startTime: room.startTime,
