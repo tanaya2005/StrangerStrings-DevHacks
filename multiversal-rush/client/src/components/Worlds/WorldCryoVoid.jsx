@@ -196,7 +196,7 @@ export default function WorldCryoVoid({ emitMove, emitFinished, emitFell, emitAc
                 emitFell={emitFell}
                 emitAchievement={emitAchievement}
                 emitWorldTransition={() => { }}
-                world={3}
+                world={6}
                 startPosition={[0, 1, 0]}
                 platforms={activePlatforms}
             />
