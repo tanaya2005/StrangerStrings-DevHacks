@@ -344,11 +344,8 @@ async function checkElimination(io, roomId, room) {
 
         // Distribute trophies and show match results
         await distributeTrophies(io, roomId, room);
-<<<<<<< HEAD
-=======
         // Save to DB
         await saveGameRecord(roomId, room);
->>>>>>> 332b0521e5a8270734e25832af7cd0e3d2c476c4
 
         // After 10 seconds, reset room
         setTimeout(() => {
@@ -364,11 +361,8 @@ async function checkElimination(io, roomId, room) {
 
         // Distribute trophies even if all eliminated
         await distributeTrophies(io, roomId, room);
-<<<<<<< HEAD
-=======
         // Save to DB
         await saveGameRecord(roomId, room);
->>>>>>> 332b0521e5a8270734e25832af7cd0e3d2c476c4
 
         // After 10 seconds, reset room
         setTimeout(() => {
