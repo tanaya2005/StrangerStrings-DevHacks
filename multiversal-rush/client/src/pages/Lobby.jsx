@@ -481,6 +481,7 @@ export default function Lobby() {
                                                     <span className="player-avatar">{p.name ? p.name.charAt(0).toUpperCase() : "?"}</span>
                                                     <span className="player-name">
                                                         {p.name}{isSelf && " (you)"}
+                                                        <span className="player-lvl-tag"> [LVL {p.level || 1}]</span>
                                                     </span>
                                                     <span className={`ready-badge ${p.ready ? "ready" : "not-ready"}`}>
                                                         {p.ready ? "✓ Ready" : "Waiting"}

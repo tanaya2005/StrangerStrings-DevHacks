@@ -56,6 +56,7 @@ export default function LeaderboardOverlay({ onClose }) {
                                             </div>
                                             <span className="player-name-text">
                                                 {player.username} {isMe && <span className="you-tag">YOU</span>}
+                                                <span className="lb-player-lvl">[LVL {player.level || 1}]</span>
                                             </span>
                                         </div>
 

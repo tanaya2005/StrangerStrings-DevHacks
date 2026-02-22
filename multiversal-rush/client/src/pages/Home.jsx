@@ -7,6 +7,7 @@ import HomeAvatar3D from "../components/HomeAvatar3D";
 import SettingsOverlay from "../components/SettingsOverlay";
 import LeaderboardOverlay from "../components/LeaderboardOverlay";
 import ShopOverlay from "../components/ShopOverlay";
+import GemPurchaseOverlay from "../components/GemPurchaseOverlay";
 import "./Home.css";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
@@ -20,21 +21,44 @@ export default function Home() {
 
     // Shop state
     const gems = useStore((s) => s.gems);
+    const xp = useStore((s) => s.xp);
+    const level = useStore((s) => s.level);
     const setGems = useStore((s) => s.setGems);
+    const setXP = useStore((s) => s.setXP);
+    const setLevel = useStore((s) => s.setLevel);
     const setOwnedAvatars = useStore((s) => s.setOwnedAvatars);
     const setAvatar = useStore((s) => s.setAvatar);
 
     const avatar = useStore((s) => s.avatar);
     const [userRank, setUserRank] = useState(0);
     const [userTrophies, setUserTrophies] = useState(0);
+
+    // XP calculation for bar
+    const calculateProgress = (totalXP) => {
+        let curlvl = 1;
+        let req = 100;
+        let runningXP = totalXP;
+        while (runningXP >= req) {
+            runningXP -= req;
+            curlvl++;
+            req += 200;
+        }
+        return { curlvl, runningXP, req };
+    };
+
+    const { runningXP, req } = calculateProgress(xp);
+    const xpPercentage = Math.min(100, Math.max(0, (runningXP / req) * 100));
+
     const [showSettings, setShowSettings] = useState(false);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
     const [showShop, setShowShop] = useState(false);
     const [showPlayModal, setShowPlayModal] = useState(false);
+    const [showGemPurchase, setShowGemPurchase] = useState(false);
 
     useEffect(() => {
         async function fetchInitialData() {
             const token = localStorage.getItem("mr_token");
+
             try {
                 // 1. Leaderboard & Stats
                 const lbRes = await fetch(`${SERVER_URL}/api/leaderboard`);
@@ -56,6 +80,8 @@ export default function Home() {
                         const invData = await shopRes.json();
                         setGems(invData.gems);
                         setOwnedAvatars(invData.ownedAvatars);
+                        if (invData.xp !== undefined) setXP(invData.xp);
+                        if (invData.level !== undefined) setLevel(invData.level);
                         if (invData.selectedAvatar) {
                             setAvatar(invData.selectedAvatar);
                         }
@@ -76,6 +102,7 @@ export default function Home() {
     const handleSettings = () => setShowSettings(true);
     const handleLeaderboard = () => setShowLeaderboard(true);
     const handleShop = () => setShowShop(true);
+    const handleGemPurchase = () => setShowGemPurchase(true);
 
     const handleLogout = () => {
         if (socket.connected) socket.disconnect();
@@ -102,6 +129,18 @@ export default function Home() {
                                 {userRank > 0 ? `RANK #${userRank}` : "UNRANKED"}
                             </div>
                         </div>
+
+                        {/* Level & XP Sidebar */}
+                        <div className="home-level-card">
+                            <div className="level-info">
+                                <span className="level-badge">LVL {level}</span>
+                                <span className="xp-text">{Math.floor(runningXP)} / {req} XP</span>
+                            </div>
+                            <div className="xp-bar-container">
+                                <div className="xp-bar-fill" style={{ width: `${xpPercentage}%` }}></div>
+                            </div>
+                        </div>
+
                         <button className="btn-hud btn-leaderboard" onClick={handleLeaderboard}>
                             <span>🏆</span> <span>LEADERBOARD</span>
                         </button>
@@ -125,7 +164,7 @@ export default function Home() {
                             <div className="currency-item gem-count" title="Gems">
                                 <span className="icon">💎</span>
                                 <span className="value">{gems.toLocaleString()}</span>
-                                <button className="btn-gem-plus" onClick={handleShop}>+</button>
+                                <button className="btn-gem-plus" onClick={handleGemPurchase}>+</button>
                             </div>
                         </div>
                         <button className="btn-hud btn-friends" onClick={handleFriends}>
@@ -205,6 +244,11 @@ export default function Home() {
             {showShop && (
                 <ShopOverlay
                     onClose={() => setShowShop(false)}
+                />
+            )}
+            {showGemPurchase && (
+                <GemPurchaseOverlay
+                    onClose={() => setShowGemPurchase(false)}
                 />
             )}
         </div>

@@ -207,6 +207,13 @@
     font-weight: 900;
 }
 
+.lb-player-lvl {
+    font-size: 0.75rem;
+    color: #00ffe0;
+    font-weight: 800;
+    opacity: 0.8;
+}
+
 .col-trophies {
     display: flex;
     align-items: center;

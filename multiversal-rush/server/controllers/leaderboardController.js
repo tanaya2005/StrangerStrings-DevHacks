@@ -13,7 +13,7 @@ export async function getLeaderboard(req, res) {
         const players = await User.find()
             .sort({ trophies: -1 })
             .limit(20)
-            .select("username email trophies wins gamesPlayed");
+            .select("username email trophies wins gamesPlayed level");
         res.json(players);
     } catch (err) {
         console.error("[Leaderboard GET]", err);

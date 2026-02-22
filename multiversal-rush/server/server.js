@@ -18,6 +18,7 @@ import { attachFriendSocket } from "./socket/friendSocket.js";
 import { registerRelaySocket } from "./socket/relayLogic.js";
 import friendRoutes from "./routes/friendRoutes.js";
 import shopRoutes from "./routes/shopRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import { initAdminController } from "./controllers/adminController.js";
 import User from "./models/User.js";
@@ -51,6 +52,7 @@ app.use("/api/achievements", achievementRoutes);
 app.use("/api/friends", friendRoutes);
 app.use("/api/admin", adminRoutes);   // 🔒 Admin panel API
 app.use("/api/shop", shopRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Banned user check — any authenticated request
 app.use(async (req, res, next) => {

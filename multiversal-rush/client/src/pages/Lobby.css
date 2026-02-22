@@ -445,6 +445,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+}
+
+.player-lvl-tag {
+    font-size: 0.7rem;
+    color: #00ffe0;
+    font-weight: 800;
+    margin-left: 6px;
+    letter-spacing: 0.5px;
+    opacity: 0.8;
 }
 
 .ready-badge {

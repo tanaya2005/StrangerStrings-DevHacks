@@ -92,6 +92,8 @@ export async function signup(req, res) {
                 trophies: user.trophies,
                 wins: user.wins,
                 gamesPlayed: user.gamesPlayed,
+                xp: user.xp || 0,
+                level: user.level || 1,
             },
         });
     } catch (err) {
@@ -139,6 +141,8 @@ export async function login(req, res) {
                 trophies: user.trophies,
                 wins: user.wins,
                 gamesPlayed: user.gamesPlayed,
+                xp: user.xp || 0,
+                level: user.level || 1,
             },
         });
     } catch (err) {

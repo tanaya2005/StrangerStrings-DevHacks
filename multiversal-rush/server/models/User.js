@@ -49,6 +49,8 @@ const UserSchema = new mongoose.Schema(
         wins: { type: Number, default: 0 },
         gamesPlayed: { type: Number, default: 0 },
         banned: { type: Boolean, default: false },
+        xp: { type: Number, default: 0 },
+        level: { type: Number, default: 1 },
 
         // ---- Friends ----
         friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

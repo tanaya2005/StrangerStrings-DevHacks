@@ -1,10 +1,11 @@
 // ============================================================
 //  components/UI/MatchResultsOverlay.jsx
-//  Shows match results for 10 seconds after game ends
+//  Shows match results, leveling progress, and action buttons
 // ============================================================
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useStore from '../../store/store';
+import socket from '../../socket/socket';
 import './MatchResultsOverlay.css';
 
 export default function MatchResultsOverlay() {
@@ -13,18 +14,59 @@ export default function MatchResultsOverlay() {
     const showMatchResults = useStore((s) => s.showMatchResults);
     const hideMatchResults = useStore((s) => s.hideMatchResults);
     const playerName = useStore((s) => s.playerName);
+    const setXP = useStore((s) => s.setXP);
+    const setLevel = useStore((s) => s.setLevel);
+    const setGems = useStore((s) => s.setGems);
+
+    const [countdown, setCountdown] = useState(15);
 
     useEffect(() => {
-        if (showMatchResults) {
-            // After 10 seconds, hide results and return to home
-            const timer = setTimeout(() => {
-                hideMatchResults();
-                navigate('/home');
-            }, 10000);
+        if (!showMatchResults) return;
 
-            return () => clearTimeout(timer);
+        // Auto-update local state if "ME" is in results
+        const myResult = matchResults.find(r => r.username === playerName);
+        if (myResult) {
+            if (myResult.newXP !== undefined) setXP(myResult.newXP);
+            if (myResult.level !== undefined) setLevel(myResult.level);
+            // Gems are updated in distributeTrophies on server, 
+            // but we might want to fetch new gem count here or trust results
+            // Note: user.gems incremented by gemsEarned. we add to current.
+            if (myResult.gemsEarned > 0) {
+                setGems(useStore.getState().gems + myResult.gemsEarned);
+            }
         }
-    }, [showMatchResults, hideMatchResults, navigate]);
+
+        const timer = setInterval(() => {
+            setCountdown(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    handleExit();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [showMatchResults, matchResults, playerName, setXP, setLevel, setGems]);
+
+    useEffect(() => {
+        const onRematchAccepted = () => {
+            hideMatchResults();
+        };
+        socket.on('rematchAccepted', onRematchAccepted);
+        return () => socket.off('rematchAccepted', onRematchAccepted);
+    }, [hideMatchResults]);
+
+    const handleExit = () => {
+        socket.emit('leaveRoom');
+        hideMatchResults();
+        navigate('/home');
+    };
+
+    const handlePlayAgain = () => {
+        socket.emit('playAgain');
+    };
 
     if (!showMatchResults || matchResults.length === 0) return null;
 
@@ -44,52 +86,42 @@ export default function MatchResultsOverlay() {
         }
     };
 
-    const getPlaceText = (place) => {
-        if (place === 0) return 'Eliminated';
-        return `${place}${getOrdinalSuffix(place)} Place`;
-    };
-
-    const getOrdinalSuffix = (num) => {
-        const j = num % 10;
-        const k = num % 100;
-        if (j === 1 && k !== 11) return 'st';
-        if (j === 2 && k !== 12) return 'nd';
-        if (j === 3 && k !== 13) return 'rd';
-        return 'th';
-    };
-
     return (
         <div className="match-results-overlay">
             <div className="match-results-container">
                 <h1 className="match-results-title">🏆 Match Results 🏆</h1>
-                
+
                 <div className="results-table">
                     <div className="results-header">
-                        <div className="col-place">Place</div>
+                        <div className="col-place">Rank</div>
                         <div className="col-player">Player</div>
-                        <div className="col-trophies">Trophies Earned</div>
+                        <div className="col-xp">XP Gained</div>
+                        <div className="col-rewards">Rewards</div>
                     </div>
 
                     {sortedResults.map((result, idx) => {
                         const isMe = result.username === playerName;
                         return (
-                            <div 
-                                key={idx} 
+                            <div
+                                key={idx}
                                 className={`result-row ${isMe ? 'highlight-me' : ''} ${result.place === 0 ? 'eliminated' : ''}`}
                             >
                                 <div className="col-place">
                                     <span className="medal">{getMedalEmoji(result.place)}</span>
-                                    <span className="place-text">{getPlaceText(result.place)}</span>
+                                    <span>{result.place === 0 ? 'ELIM' : `#${result.place}`}</span>
                                 </div>
                                 <div className="col-player">
-                                    {result.username}
+                                    <span className="player-name-text">{result.username}</span>
                                     {isMe && <span className="you-badge">YOU</span>}
+                                    <div className="lvl-tag">LVL {result.level || 1}</div>
                                 </div>
-                                <div className="col-trophies">
-                                    {result.trophiesEarned > 0 ? (
-                                        <span className="trophies-positive">+{result.trophiesEarned} 🏆</span>
-                                    ) : (
-                                        <span className="trophies-zero">0 🏆</span>
+                                <div className="col-xp">
+                                    <span style={{ color: '#00ffe0' }}>+{result.xpEarned || 100} XP</span>
+                                </div>
+                                <div className="col-rewards">
+                                    <div className="reward-pill">+{result.trophiesEarned || 0} 🏆</div>
+                                    {result.gemsEarned > 0 && (
+                                        <div className="reward-pill gems">+{result.gemsEarned} 💎</div>
                                     )}
                                 </div>
                             </div>
@@ -97,8 +129,17 @@ export default function MatchResultsOverlay() {
                     })}
                 </div>
 
+                <div className="match-actions">
+                    <button className="btn-play-again" onClick={handlePlayAgain}>
+                        Play Again
+                    </button>
+                    <button className="btn-exit" onClick={handleExit}>
+                        Exit Room
+                    </button>
+                </div>
+
                 <div className="return-message">
-                    Returning to home in 10 seconds...
+                    Auto-exiting in {countdown} seconds...
                 </div>
             </div>
         </div>

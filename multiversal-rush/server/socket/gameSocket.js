@@ -41,6 +41,39 @@ const TROPHY_REWARDS = {
     3: 5,   // 3rd place
 };
 
+// XP rewards
+const XP_REWARDS = {
+    1: 200,
+    2: 175,
+    3: 150,
+    participation: 100,
+};
+
+// ---- Helpers ----
+
+/**
+ * Calculates level from total XP
+ * Level 1: 0-99 XP
+ * Level 2: Starts at 100 XP
+ * Requirement increases by 200 each level
+ */
+function getLevelInfo(totalXP) {
+    let level = 1;
+    let xpNeeded = 100;
+    let tempXP = totalXP;
+    while (tempXP >= xpNeeded) {
+        tempXP -= xpNeeded;
+        level++;
+        xpNeeded += 200;
+    }
+    return {
+        level,
+        currentXP: tempXP,
+        neededXP: xpNeeded,
+        progress: Math.floor((tempXP / xpNeeded) * 100)
+    };
+}
+
 // ---- Helpers ----
 
 /** Create a blank room object */
@@ -145,7 +178,7 @@ function playerCount(room) {
 async function distributeTrophies(io, roomId, room) {
     const results = [];
 
-    // Process each player in finish order
+    // 1. Process each player in finish order (Winners)
     for (let i = 0; i < room.finishedOrder.length; i++) {
         const socketId = room.finishedOrder[i];
         const player = room.players[socketId];
@@ -153,16 +186,32 @@ async function distributeTrophies(io, roomId, room) {
 
         const place = i + 1;
         const trophiesEarned = TROPHY_REWARDS[place] || 0;
+        const xpEarned = XP_REWARDS[place] || XP_REWARDS.participation;
         const isWinner = place === 1;
 
         try {
+            // Find user to get current XP/Level
+            const user = await User.findOne({ username: player.name });
+            if (!user) continue;
+
+            const oldXP = user.xp || 0;
+            const oldLevel = user.level || 1;
+            const newTotalXP = oldXP + xpEarned;
+
+            // Calculate new level info
+            const levelInfo = getLevelInfo(newTotalXP);
+            const levelsGained = levelInfo.level - oldLevel;
+            const gemsEarned = levelsGained * 2;
+
             // Update user in database
             const updatedUser = await User.findOneAndUpdate(
                 { username: player.name },
                 {
+                    $set: { xp: newTotalXP, level: levelInfo.level },
                     $inc: {
                         trophies: trophiesEarned,
                         gamesPlayed: 1,
+                        gems: gemsEarned,
                         ...(isWinner ? { wins: 1 } : {}),
                     },
                 },
@@ -174,50 +223,69 @@ async function distributeTrophies(io, roomId, room) {
                     username: player.name,
                     place,
                     trophiesEarned,
+                    xpEarned,
+                    gemsEarned,
+                    level: updatedUser.level,
+                    newXP: updatedUser.xp,
                     totalTrophies: updatedUser.trophies,
                     wins: updatedUser.wins,
                     gamesPlayed: updatedUser.gamesPlayed,
                 });
 
                 console.log(
-                    `[Room ${roomId}] ${player.name} - Place ${place} - Earned ${trophiesEarned} trophies - Total: ${updatedUser.trophies}`
+                    `[Room ${roomId}] ${player.name} - Place ${place} - XP +${xpEarned} - Level ${updatedUser.level}`
                 );
             }
         } catch (err) {
-            console.error(`[Trophy Distribution] Error updating ${player.name}:`, err);
-            // Still add to results even if DB update fails
+            console.error(`[XP/Trophy Distribution] Error updating ${player.name}:`, err);
             results.push({
                 username: player.name,
                 place,
-                trophiesEarned,
+                trophiesEarned: 0,
+                xpEarned: 0,
+                gemsEarned: 0,
+                level: 1,
                 totalTrophies: 0,
-                wins: 0,
-                gamesPlayed: 0,
             });
         }
     }
 
-    // Also increment gamesPlayed for eliminated players (0 trophies)
+    // 2. Process eliminated players (Participation)
     for (const socketId in room.players) {
         const player = room.players[socketId];
         if (player.eliminated && !room.finishedOrder.includes(socketId)) {
+            const xpEarned = XP_REWARDS.participation;
             try {
-                await User.findOneAndUpdate(
-                    { username: player.name },
-                    { $inc: { gamesPlayed: 1 } },
-                    { new: true }
-                );
+                const user = await User.findOne({ username: player.name });
+                if (user) {
+                    const oldXP = user.xp || 0;
+                    const oldLevel = user.level || 1;
+                    const newTotalXP = oldXP + xpEarned;
+                    const levelInfo = getLevelInfo(newTotalXP);
+                    const levelsGained = levelInfo.level - oldLevel;
+                    const gemsEarned = levelsGained * 2;
 
-                results.push({
-                    username: player.name,
-                    place: 0, // Eliminated
-                    trophiesEarned: 0,
-                    totalTrophies: 0,
-                    wins: 0,
-                    gamesPlayed: 0,
-                });
+                    const updatedUser = await User.findOneAndUpdate(
+                        { username: player.name },
+                        {
+                            $set: { xp: newTotalXP, level: levelInfo.level },
+                            $inc: { gamesPlayed: 1, gems: gemsEarned }
+                        },
+                        { new: true }
+                    );
+
+                    results.push({
+                        username: player.name,
+                        place: 0, // Eliminated
+                        trophiesEarned: 0,
+                        xpEarned,
+                        gemsEarned,
+                        level: updatedUser.level,
+                        totalTrophies: updatedUser.trophies,
+                    });
+                }
             } catch (err) {
-                console.error(`[Trophy Distribution] Error updating eliminated player ${player.name}:`, err);
+                console.error(`[XP Distribution] Error updating eliminated player ${player.name}:`, err);
             }
         }
     }
@@ -347,10 +415,7 @@ async function checkElimination(io, roomId, room) {
         // Save to DB
         await saveGameRecord(roomId, room);
 
-        // After 10 seconds, reset room
-        setTimeout(() => {
-            io.to(roomId).emit("returnToLobby");
-        }, MATCH_RESULTS_DURATION);
+        // User choice handled in MatchResultsOverlay
     }
 
     // If no active players (all eliminated), end game
@@ -364,10 +429,7 @@ async function checkElimination(io, roomId, room) {
         // Save to DB
         await saveGameRecord(roomId, room);
 
-        // After 10 seconds, reset room
-        setTimeout(() => {
-            io.to(roomId).emit("returnToLobby");
-        }, MATCH_RESULTS_DURATION);
+        // User choice handled in MatchResultsOverlay
     }
 }
 
@@ -480,7 +542,7 @@ export function registerGameSocket(io) {
         //  Client sends: { roomId, playerName }
         //  Server responds: roomJoined | roomFull | roomError
         // --------------------------------------------------------
-        socket.on("joinRoom", ({ roomId, playerName }) => {
+        socket.on("joinRoom", async ({ roomId, playerName }) => {
             try {
                 // Create room if it doesn't exist yet
                 if (!rooms[roomId]) {
@@ -525,9 +587,18 @@ export function registerGameSocket(io) {
                 socket.join(roomId);
 
                 // Add player to room state
+                let initialLevel = 1;
+                try {
+                    const user = await User.findOne({ username: playerName });
+                    if (user) initialLevel = user.level || 1;
+                } catch (err) {
+                    console.error("[joinRoom] Error fetching player level:", err);
+                }
+
                 room.players[socket.id] = {
                     id: socket.id,
                     name: playerName || `Player_${socket.id.slice(0, 5)}`,
+                    level: initialLevel,
                     position: { x: 0, y: 1, z: 0 },   // spawn position
                     rotation: { y: 0 },
                     world: 0,          // starts in hub (world 0)
@@ -573,8 +644,8 @@ export function registerGameSocket(io) {
         //  Does exactly what disconnect does for that room, but
         //  keeps the socket alive so the player can rejoin later.
         // --------------------------------------------------------
-        socket.on("leaveRoom", () => {
-            const roomId = socket.data.roomId;
+        socket.on("leaveRoom", (data) => {
+            const roomId = data?.roomId || socket.data.roomId;
             if (!roomId || !rooms[roomId]) return;
 
             const room = rooms[roomId];
@@ -621,6 +692,46 @@ export function registerGameSocket(io) {
                 delete rooms[roomId];
                 console.log(`[Room ${roomId}] Deleted (empty after voluntary leave)`);
             }
+        });
+
+        // --------------------------------------------------------
+        //  playAgain  ← NEW
+        //  Fired from the Winner Screen. Resets the player for rematch.
+        // --------------------------------------------------------
+        socket.on("playAgain", () => {
+            const roomId = socket.data.roomId;
+            if (!roomId || !rooms[roomId]) return;
+
+            const room = rooms[roomId];
+            const player = room.players[socket.id];
+            if (!player) return;
+
+            // 1. Reset specific player state
+            player.ready = false;
+            player.finished = false;
+            player.finishTime = null;
+            player.eliminated = false;
+            player.fellThisRace = false;
+
+            // 2. Room-level Reset: if first person to ask for rematch
+            if (room.gameState === "finished") {
+                room.gameState = "waiting";
+                room.finishedOrder = [];
+                room.startTime = null;
+                room.selectedMap = null;
+                // Stop any leftover intervals
+                if (room.windInterval) clearInterval(room.windInterval);
+                if (room.avalancheInterval) clearInterval(room.avalancheInterval);
+                if (room.lobbyInterval) clearInterval(room.lobbyInterval);
+            }
+
+            // 3. Emit rematchAccepted ONLY to this player
+            io.to(socket.id).emit("rematchAccepted");
+
+            // 4. Update everyone (so player list reflects not-ready status)
+            io.to(roomId).emit("playersUpdated", { players: getPlayerList(room) });
+
+            console.log(`[Room ${roomId}] ${player.name} requested rematch`);
         });
 
         // --------------------------------------------------------
@@ -855,10 +966,7 @@ export function registerGameSocket(io) {
                     }
                 }
 
-                // After 10 seconds, signal return to lobby
-                setTimeout(() => {
-                    io.to(roomId).emit("returnToLobby");
-                }, MATCH_RESULTS_DURATION);
+                // User choice handled in MatchResultsOverlay
             }
         });
 
@@ -922,10 +1030,7 @@ export function registerGameSocket(io) {
                 // Distribute trophies and show match results
                 await distributeTrophies(io, roomId, room);
 
-                // After 10 seconds, signal return to lobby
-                setTimeout(() => {
-                    io.to(roomId).emit("returnToLobby");
-                }, MATCH_RESULTS_DURATION);
+                // User choice handled in MatchResultsOverlay
             } else if (activePlayers.length === 0) {
                 // All eliminated
                 room.gameState = "finished";
@@ -934,10 +1039,7 @@ export function registerGameSocket(io) {
                 // Distribute trophies (all get 0)
                 await distributeTrophies(io, roomId, room);
 
-                // After 10 seconds, signal return to lobby
-                setTimeout(() => {
-                    io.to(roomId).emit("returnToLobby");
-                }, MATCH_RESULTS_DURATION);
+                // User choice handled in MatchResultsOverlay
             }
         });
 

@@ -10,7 +10,7 @@ import User from "../models/User.js";
  */
 export async function getInventory(req, res) {
     try {
-        const user = await User.findById(req.userId).select("gems ownedAvatars selectedAvatar");
+        const user = await User.findById(req.userId).select("gems xp level ownedAvatars selectedAvatar");
         if (!user) return res.status(404).json({ error: "User not found" });
         res.json(user);
     } catch (err) {

@@ -15,9 +15,13 @@ const useStore = create((set, get) => ({
     // ---- Avatar & Shop ----
     avatar: "/models/penguin/scene.gltf",   // default
     gems: 0,
+    xp: 0,
+    level: 1,
     ownedAvatars: [],
     setAvatar: (path) => set({ avatar: path }),
     setGems: (val) => set({ gems: val }),
+    setXP: (val) => set({ xp: val }),
+    setLevel: (val) => set({ level: val }),
     setOwnedAvatars: (list) => set({ ownedAvatars: list }),
 
     // ---- Room ----
