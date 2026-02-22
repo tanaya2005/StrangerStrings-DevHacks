@@ -14,6 +14,7 @@ import Friends from "./pages/Friends";
 import WorldTest from "./pages/WorldTest";
 import Achievements from "./pages/Achievements";
 import LoadingScreen from "./components/LoadingScreen";
+import GlobalLayout from "./components/Layout/GlobalLayout";
 
 /** Read token from localStorage — called on every render */
 function isLoggedIn() {
@@ -26,7 +27,7 @@ function isLoggedIn() {
  */
 function PrivateRoute({ children }) {
   if (!isLoggedIn()) return <Navigate to="/" replace />;
-  return children;
+  return <GlobalLayout>{children}</GlobalLayout>;
 }
 
 /**

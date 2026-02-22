@@ -116,6 +116,10 @@ const useStore = create((set, get) => ({
     achievementPopup: null,  // { achievement, newTier } or null
     showAchievementPopup: (data) => set({ achievementPopup: data }),
     dismissAchievementPopup: () => set({ achievementPopup: null }),
+
+    // ---- Notifications ----
+    pendingRequests: 0,
+    setPendingRequests: (count) => set({ pendingRequests: count }),
 }));
 
 export default useStore;
