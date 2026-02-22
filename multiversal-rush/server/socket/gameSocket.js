@@ -800,10 +800,24 @@ export function registerGameSocket(io) {
                 room.gameState = "lobby";  // 3D lobby phase
 
                 // Pick map NOW so we can show it during countdown
-                // Random map — never same as last played
-                const MAPS = ["frozenfrenzy", "lavahell", "honeycomb", "neonparadox", "cryovoid"];
-                const availableMaps = MAPS.filter(m => m !== room.lastMap);
-                room.selectedMap = availableMaps[Math.floor(Math.random() * availableMaps.length)];
+                // Weighted random map — prioritize cryovoid & honeycomb for demos
+                const MAP_WEIGHTS = {
+                    "cryovoid": 3,      // 3x more likely
+                    "honeycomb": 3,     // 3x more likely
+                    "frozenfrenzy": 1,
+                    "lavahell": 1,
+                    "neonparadox": 1
+                };
+                
+                const availableMaps = Object.keys(MAP_WEIGHTS).filter(m => m !== room.lastMap);
+                const weightedPool = [];
+                availableMaps.forEach(map => {
+                    for (let i = 0; i < MAP_WEIGHTS[map]; i++) {
+                        weightedPool.push(map);
+                    }
+                });
+                
+                room.selectedMap = weightedPool[Math.floor(Math.random() * weightedPool.length)];
                 room.lastMap = room.selectedMap;
 
                 console.log(`[Room ${roomId}] All ready – entering 3D lobby. Map pre-selected: ${room.selectedMap}`);

@@ -36,7 +36,7 @@ const relayRooms = {};
 // ---- Constants ----
 const RELAY_TROPHY_REWARD = 50;
 // Fixed 3-map rotation for relay: Lava Hell → Neon Paradox → Frozen Frenzy
-const RELAY_MAPS = ["lavahell", "neonparadox", "frozenfrenzy"];
+const RELAY_MAPS = ["cryovoid", "neonparadox", "lavahell"];
 const MAP_LABELS = {
     frozenfrenzy: "🌨️ Frozen Frenzy",
     lavahell: "🔥 Lava Hell",
