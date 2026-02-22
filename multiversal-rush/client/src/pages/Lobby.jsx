@@ -1,21 +1,27 @@
 // ============================================================
-//  pages/Lobby.jsx — Waiting Room
-//  Member 2 (Multiplayer)
-//
+//  pages/Lobby.jsx — Waiting Room (v3)
 //  Features:
-//   • Text input to pick a room ID
-//   • Join / create a room via socket
-//   • Show connected players + their ready status
-//   • Ready button
-//   • Waiting-room text chat
-//   • Countdown display before game starts
+//   • Join / create room + invite friends from friend list
+//   • Player list with friend-status-aware follow buttons 
+//     (shows ✓ if already friends on mount — no re-add needed)
+//   • Ready button → server flow → 3D lobby → random map
+//   • Scrollable chat with auto-scroll
+//   • FR toasts bottom-right (incoming request + accepted)
 // ============================================================
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import socket from "../socket/socket";
+import { getFriendSocket } from "../socket/friendSocket";
 import useStore from "../store/store";
 import Voice from "../voice/Voice";
 import "./Lobby.css";
+
+const API = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
+
+function authHeaders() {
+    const token = localStorage.getItem("mr_token");
+    return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+}
 
 export default function Lobby() {
     const navigate = useNavigate();
@@ -32,7 +38,8 @@ export default function Lobby() {
     const setStartTime = useStore((s) => s.setStartTime);
     const setChatMessages = useStore((s) => s.setChatMessages);
     const addChatMessage = useStore((s) => s.addChatMessage);
-
+    const avatar = useStore((s) => s.avatar);
+    const setAvatar = useStore((s) => s.setAvatar);
     const players = useStore((s) => s.players);
     const chatMessages = useStore((s) => s.chatMessages);
     const gameState = useStore((s) => s.gameState);
@@ -41,43 +48,112 @@ export default function Lobby() {
     const [inputRoom, setInputRoom] = useState("");
     const [joined, setJoined] = useState(false);
     const [error, setError] = useState("");
-    const [countdown, setCountdown] = useState(null);
     const [chatInput, setChatInput] = useState("");
     const [isReady, setIsReady] = useState(false);
 
-    const chatEndRef = useRef(null);
-    const mySocketId = socket.id;
+    // friendMap: username → "idle" | "friends" | "sending" | "sent"
+    const [friendMap, setFriendMap] = useState({});
 
-    // ---- Load username from localStorage on mount ----
+    // friend list for invite panel: [{ _id, username }]
+    const [friendList, setFriendList] = useState([]);
+
+    // invite status: username → "idle"|"sending"|"sent"
+    const [inviteMap, setInviteMap] = useState({});
+
+    // FR toasts
+    const [frToasts, setFrToasts] = useState([]);
+    const [acceptedToasts, setAcceptedToasts] = useState([]);
+
+    // Room invite notification (someone invited ME)
+    const [roomInvites, setRoomInvites] = useState([]); // [{ fromName, roomCode, id }]
+
+    const chatEndRef = useRef(null);
+
+    // ---- Load username from localStorage ----
     useEffect(() => {
         const storedUser = localStorage.getItem("mr_user");
         if (storedUser) {
             try {
                 const user = JSON.parse(storedUser);
-                if (user.username && !playerName) {
-                    setPlayerName(user.username);
-                }
-            } catch (err) {
-                console.error("Failed to parse stored user:", err);
-            }
+                if (user.username && !playerName) setPlayerName(user.username);
+            } catch { /* ignore */ }
         }
     }, [playerName, setPlayerName]);
+
+    // ---- Pre-fetch my friend list so we know who's already a friend ----
+    useEffect(() => {
+        async function fetchFriends() {
+            try {
+                const res = await fetch(`${API}/api/friends`, { headers: authHeaders() });
+                if (!res.ok) return;
+                const data = await res.json();
+                const friends = data.friends || [];
+                setFriendList(friends);
+                // Pre-mark everyone already a friend as "friends"
+                // Normalize keys to lowercase to avoid casing mismatches
+                const initial = {};
+                friends.forEach(f => {
+                    if (f.username) initial[f.username.toLowerCase()] = "friends";
+                });
+                setFriendMap(prev => ({ ...initial, ...prev }));
+            } catch { /* no auth / offline */ }
+        }
+        fetchFriends();
+    }, []);
 
     // ---- Auto-scroll chat ----
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [chatMessages]);
 
+    // ---- Friend socket: real-time request notifications ----
+    useEffect(() => {
+        const fs = getFriendSocket?.();
+        if (!fs) return;
+
+        fs.on("friend:requestReceived", ({ fromUserId, fromUsername }) => {
+            const id = `fr-${Date.now()}`;
+            setFrToasts(prev => [...prev, { fromUserId, fromUsername, id }]);
+            setTimeout(() => setFrToasts(prev => prev.filter(t => t.id !== id)), 15000);
+        });
+
+        fs.on("friend:accepted", ({ friendUsername }) => {
+            const id = `acc-${Date.now()}`;
+            setAcceptedToasts(prev => [...prev, { friendUsername, id }]);
+            setTimeout(() => setAcceptedToasts(prev => prev.filter(t => t.id !== id)), 5000);
+            // Update map so button shows ✓ friends (normalized key)
+            if (friendUsername) {
+                setFriendMap(prev => ({ ...prev, [friendUsername.toLowerCase()]: "friends" }));
+            }
+        });
+
+        fs.on("friend:requestSent", ({ toUsername }) => {
+            if (toUsername) {
+                setFriendMap(prev => ({ ...prev, [toUsername.toLowerCase()]: "sent" }));
+            }
+        });
+
+        fs.on("friend:requestError", () => {
+            setFriendMap(prev => {
+                const next = { ...prev };
+                Object.keys(next).forEach(k => { if (next[k] === "sending") next[k] = "idle"; });
+                return next;
+            });
+        });
+
+        return () => {
+            fs.off("friend:requestReceived");
+            fs.off("friend:accepted");
+            fs.off("friend:requestSent");
+            fs.off("friend:requestError");
+        };
+    }, []);
+
     // ---- Socket setup ----
     useEffect(() => {
-        // Connect socket when entering lobby
         if (!socket.connected) socket.connect();
 
-        // ---- Incoming events ----
-
-        // Successfully joined room
         socket.on("roomJoined", ({ roomId, playerId, players, chatHistory }) => {
-            console.log('[Lobby] roomJoined:', { roomId, playerId, players });
             setPlayerId(playerId);
             setRoomId(roomId);
             setPlayers(players);
@@ -86,57 +162,32 @@ export default function Lobby() {
             setError("");
         });
 
-        // Room was full or error
-        socket.on("roomFull", ({ message }) => {
-            console.log('[Lobby] roomFull:', message);
-            setError(message);
-        });
-        socket.on("roomError", ({ message }) => {
-            console.log('[Lobby] roomError:', message);
-            setError(message);
-        });
-
-        // Another player joined
-        socket.on("playerJoined", ({ players }) => {
-            console.log('[Lobby] playerJoined, total players:', players.length);
-            setPlayers(players);
-        });
-
-        // A player's ready state changed
+        socket.on("roomFull", ({ message }) => setError(message));
+        socket.on("roomError", ({ message }) => setError(message));
+        socket.on("playerJoined", ({ players }) => setPlayers(players));
         socket.on("playersUpdated", ({ players }) => setPlayers(players));
-
-        // A player left
         socket.on("playerLeft", ({ players }) => setPlayers(players));
 
-        // Countdown started
-        socket.on("countdownStarted", ({ seconds }) => {
-            setGameState("countdown");
-            setCountdown(seconds);
-            // Decrement every second
-            let remaining = seconds;
-            const interval = setInterval(() => {
-                remaining -= 1;
-                setCountdown(remaining);
-                if (remaining <= 0) clearInterval(interval);
-            }, 1000);
-        });
-
-        // Countdown cancelled (someone left)
         socket.on("countdownCancelled", ({ reason }) => {
             setGameState("waiting");
-            setCountdown(null);
-            setError(`Countdown cancelled: ${reason}`);
+            setIsReady(false);
+            setError(`Cancelled: ${reason}`);
         });
 
-        // Game started → navigate to Game page
-        socket.on("gameStarted", ({ startTime, players }) => {
-            setGameState("playing");
-            setStartTime(startTime);
-            setPlayers(players);
+        // ── All ready → go to 3D lobby ──
+        socket.on("allReadyMoveToLobby", () => {
+            console.log("[Lobby] allReadyMoveToLobby → /game");
+            setGameState("lobby");
             navigate("/game");
         });
 
-        // Chat message received
+        // ── Someone invited me to a room ──
+        socket.on("roomInvite", ({ fromName, roomCode }) => {
+            const id = `inv-${Date.now()}`;
+            setRoomInvites(prev => [...prev, { fromName, roomCode, id }]);
+            setTimeout(() => setRoomInvites(prev => prev.filter(t => t.id !== id)), 30000);
+        });
+
         socket.on("chatUpdate", ({ message }) => addChatMessage(message));
 
         return () => {
@@ -146,53 +197,39 @@ export default function Lobby() {
             socket.off("playerJoined");
             socket.off("playersUpdated");
             socket.off("playerLeft");
-            socket.off("countdownStarted");
             socket.off("countdownCancelled");
-            socket.off("gameStarted");
+            socket.off("allReadyMoveToLobby");
+            socket.off("roomInvite");
             socket.off("chatUpdate");
         };
     }, []);
 
     // ---- Handlers ----
-
     function generateRoomCode() {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return code;
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
     }
 
     function handleCreateRoom() {
-        if (!playerName) { setError("Go back and set your name first"); return; }
-        const newRoomCode = generateRoomCode();
-        setInputRoom(newRoomCode);
+        if (!playerName) { setError("Set your name first"); return; }
+        const code = generateRoomCode();
+        setInputRoom(code);
         setError("");
-        socket.emit("joinRoom", {
-            roomId: newRoomCode,
-            playerName,
-        });
-        // Remove focus from the input so WASD doesn't type into it
-        if (document.activeElement) document.activeElement.blur();
+        socket.emit("joinRoom", { roomId: code, playerName });
+        document.activeElement?.blur();
     }
 
     function handleJoinRoom() {
         if (!inputRoom.trim()) { setError("Enter a room code"); return; }
-        if (!playerName) { setError("Go back and set your name first"); return; }
+        if (!playerName) { setError("Set your name first"); return; }
         setError("");
-        console.log('[Lobby] Joining room:', inputRoom.trim().toUpperCase(), 'as', playerName);
-        socket.emit("joinRoom", {
-            roomId: inputRoom.trim().toUpperCase(),
-            playerName,
-        });
-        // Remove focus from the input so WASD doesn't type into it
-        if (document.activeElement) document.activeElement.blur();
+        socket.emit("joinRoom", { roomId: inputRoom.trim().toUpperCase(), playerName });
+        document.activeElement?.blur();
     }
 
     function handleReady() {
         socket.emit("playerReady");
-        setIsReady((prev) => !prev);
+        setIsReady(prev => !prev);
     }
 
     function handleSendChat(e) {
@@ -208,40 +245,143 @@ export default function Lobby() {
         navigate("/");
     }
 
+    // ── Send friend request ──
+    const handleFollow = useCallback(async (targetName) => {
+        if (!targetName) return;
+        const lowerName = targetName.toLowerCase();
+        setFriendMap(prev => ({ ...prev, [lowerName]: "sending" }));
+        try {
+            const res = await fetch(`${API}/api/friends/request`, {
+                method: "POST", headers: authHeaders(),
+                body: JSON.stringify({ toUsername: targetName }),
+            });
+            const data = await res.json();
+            if (res.ok || data.error === "Already friends" || data.error === "Request already sent") {
+                setFriendMap(prev => ({ ...prev, [lowerName]: "sent" }));
+            } else {
+                setFriendMap(prev => ({ ...prev, [lowerName]: "idle" }));
+                setError(`Add friend failed: ${data.error}`);
+                setTimeout(() => setError(""), 4000);
+            }
+        } catch {
+            setFriendMap(prev => ({ ...prev, [lowerName]: "idle" }));
+        }
+    }, []);
+
+    // ── Accept FR toast ──
+    const handleAcceptRequest = useCallback(async (fromUserId, toastId) => {
+        setFrToasts(prev => prev.filter(t => t.id !== toastId));
+        try {
+            await fetch(`${API}/api/friends/respond`, {
+                method: "POST", headers: authHeaders(),
+                body: JSON.stringify({ fromUserId, action: "accept" }),
+            });
+        } catch { /* ignore */ }
+    }, []);
+
+    // ── Decline FR toast ──
+    const handleDeclineRequest = useCallback(async (fromUserId, toastId) => {
+        setFrToasts(prev => prev.filter(t => t.id !== toastId));
+        try {
+            await fetch(`${API}/api/friends/respond`, {
+                method: "POST", headers: authHeaders(),
+                body: JSON.stringify({ fromUserId, action: "decline" }),
+            });
+        } catch { /* ignore */ }
+    }, []);
+
+    // ── Invite a friend to the current room ──
+    const handleInviteFriend = useCallback((friendUsername) => {
+        if (!roomId && !inputRoom) return;
+        const code = roomId || inputRoom;
+        setInviteMap(prev => ({ ...prev, [friendUsername]: "sending" }));
+        // Emit invite via socket so server can forward to that player's socket
+        socket.emit("sendRoomInvite", { toUsername: friendUsername, roomCode: code });
+        setInviteMap(prev => ({ ...prev, [friendUsername]: "sent" }));
+        setTimeout(() => setInviteMap(prev => ({ ...prev, [friendUsername]: "idle" })), 8000);
+    }, [roomId, inputRoom]);
+
+    // ── Accept room invite toast ──
+    const handleJoinViaInvite = useCallback((roomCode, toastId) => {
+        setRoomInvites(prev => prev.filter(t => t.id !== toastId));
+        setInputRoom(roomCode);
+        socket.emit("joinRoom", { roomId: roomCode, playerName });
+    }, [playerName]);
+
     // ---- Render ----
     const playerList = Object.values(players);
+    const currentCode = roomId || inputRoom;
 
     return (
         <div className="lobby-page">
             <div className="lobby-bg-anim" />
 
+            {/* ── Toasts: bottom-right stack ── */}
+            <div className="fr-toast-stack">
+                {/* Incoming FR */}
+                {frToasts.map(t => (
+                    <div key={t.id} className="fr-toast">
+                        <div className="fr-toast-icon">👤</div>
+                        <div className="fr-toast-body">
+                            <p><strong>{t.fromUsername}</strong> sent you a friend request!</p>
+                        </div>
+                        <div className="fr-toast-actions">
+                            <button className="fr-btn-accept" onClick={() => handleAcceptRequest(t.fromUserId, t.id)}>✓ Accept</button>
+                            <button className="fr-btn-decline" onClick={() => handleDeclineRequest(t.fromUserId, t.id)}>✗</button>
+                        </div>
+                    </div>
+                ))}
+
+                {/* Accepted */}
+                {acceptedToasts.map(t => (
+                    <div key={t.id} className="fr-toast fr-toast--accepted">
+                        <div className="fr-toast-icon">🤝</div>
+                        <div className="fr-toast-body">
+                            <p>You and <strong>{t.friendUsername}</strong> are now friends!</p>
+                        </div>
+                    </div>
+                ))}
+
+                {/* Room invites */}
+                {roomInvites.map(t => (
+                    <div key={t.id} className="fr-toast fr-toast--invite">
+                        <div className="fr-toast-icon">🎮</div>
+                        <div className="fr-toast-body">
+                            <p><strong>{t.fromName}</strong> invited you to room <strong>{t.roomCode}</strong></p>
+                        </div>
+                        <div className="fr-toast-actions">
+                            <button className="fr-btn-accept" onClick={() => handleJoinViaInvite(t.roomCode, t.id)}>Join</button>
+                            <button className="fr-btn-decline" onClick={() => setRoomInvites(prev => prev.filter(i => i.id !== t.id))}>✗</button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
             <div className="lobby-container">
                 {/* ---- Header ---- */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div className="lobby-header">
                     <div>
-                        <h1 className="lobby-title">
-                            🌌 <span>Multiversal Rush</span>
-                        </h1>
+                        <h1 className="lobby-title">🌌 Multiversal Rush</h1>
                         <p className="lobby-subtitle">Waiting Room</p>
                     </div>
-                    <button
-                        onClick={handleLogout}
-                        style={{
-                            background: 'rgba(255,77,109,0.2)',
-                            border: '1px solid rgba(255,77,109,0.5)',
-                            color: '#ff4d6d',
-                            padding: '8px 16px',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: 600,
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseOver={(e) => e.target.style.background = 'rgba(255,77,109,0.3)'}
-                        onMouseOut={(e) => e.target.style.background = 'rgba(255,77,109,0.2)'}
-                    >
-                        Logout
-                    </button>
+                    <button className="btn-logout" onClick={handleLogout}>Logout</button>
+                </div>
+
+                {/* ---- Avatar Picker ---- */}
+                <div className="avatar-picker">
+                    <p className="avatar-label">🎭 Choose your avatar</p>
+                    <div className="avatar-row">
+                        {[
+                            { label: "🐧 Penguin", path: "/models/penguin/scene.gltf" },
+                            { label: "🐼 Red Panda", path: "/models/red-panda/scene.gltf" },
+                        ].map(({ label, path }) => (
+                            <button
+                                key={path}
+                                className={`btn-avatar ${avatar === path ? "selected" : ""}`}
+                                onClick={() => setAvatar(path)}
+                            >{label}</button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* ---- Join Panel ---- */}
@@ -258,107 +398,110 @@ export default function Lobby() {
                                 maxLength={10}
                                 id="room-code-input"
                             />
-                            <button className="btn-join" onClick={handleJoinRoom} id="btn-join-room">
-                                Join Room
-                            </button>
+                            <button className="btn-join" onClick={handleJoinRoom} id="btn-join-room">Join</button>
                         </div>
-                        <div style={{ marginTop: '10px', textAlign: 'center' }}>
-                            <span style={{ color: '#888', fontSize: '0.9rem' }}>or</span>
-                        </div>
-                        <button
-                            className="btn-join"
-                            onClick={handleCreateRoom}
-                            id="btn-create-room"
-                            style={{ width: '100%', marginTop: '10px', background: 'rgba(0,255,200,0.15)' }}
-                        >
-                            Create New Room
+                        <button className="btn-join btn-create" onClick={handleCreateRoom} id="btn-create-room">
+                            + Create New Room
                         </button>
                         {error && <p className="lobby-error">{error}</p>}
                     </div>
                 ) : (
                     /* ---- In-Room Panel ---- */
                     <div className="room-panel">
-
-                        {/* Countdown overlay */}
-                        {countdown !== null && countdown > 0 && (
-                            <div className="countdown-overlay">
-                                <span>{countdown}</span>
-                            </div>
-                        )}
-                        {countdown === 0 && (
-                            <div className="countdown-overlay go">GO!</div>
-                        )}
-
                         <div className="room-layout">
 
-                            {/* === Room ID Display === */}
-                            <div style={{
-                                background: 'rgba(0,255,200,0.1)',
-                                border: '2px solid rgba(0,255,200,0.3)',
-                                borderRadius: '12px',
-                                padding: '15px',
-                                marginBottom: '20px',
-                                textAlign: 'center'
-                            }}>
-                                <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
-                                    Room Code
+                            {/* === LEFT COLUMN === */}
+                            <div className="left-col">
+
+                                {/* Room Code */}
+                                <div className="room-code-box">
+                                    <div className="room-code-label">Room Code</div>
+                                    <div className="room-code-value">{currentCode}</div>
+                                    <button
+                                        className="btn-copy"
+                                        onClick={() => navigator.clipboard.writeText(currentCode)}
+                                        title="Copy room code"
+                                    >📋 Copy</button>
+                                    <div className="room-code-hint">Share with friends to join</div>
                                 </div>
-                                <div style={{
-                                    fontSize: '1.8rem',
-                                    fontWeight: 'bold',
-                                    color: '#00ffe0',
-                                    letterSpacing: '0.3em',
-                                    fontFamily: 'monospace'
-                                }}>
-                                    {roomId || inputRoom}
+
+                                {/* Players */}
+                                <div className="players-sidebar">
+                                    <h2 className="sidebar-title">Players ({playerList.length}/5)</h2>
+                                    <ul className="player-list">
+                                        {playerList.map((p) => {
+                                            const isSelf = p.id === socket.id;
+                                            const lowerName = p.name ? p.name.toLowerCase() : "";
+                                            const fState = friendMap[lowerName] || "idle";
+                                            const isFriend = fState === "friends";
+                                            return (
+                                                <li key={p.id} className={`player-item ${isSelf ? "self" : ""}`}>
+                                                    <span className="player-avatar">{p.name ? p.name.charAt(0).toUpperCase() : "?"}</span>
+                                                    <span className="player-name">
+                                                        {p.name}{isSelf && " (you)"}
+                                                    </span>
+                                                    <span className={`ready-badge ${p.ready ? "ready" : "not-ready"}`}>
+                                                        {p.ready ? "✓ Ready" : "Waiting"}
+                                                    </span>
+                                                    {!isSelf && (
+                                                        <button
+                                                            className={`btn-follow-lobby ${isFriend ? "is-friend" : fState === "sent" ? "is-sent" : ""}`}
+                                                            onClick={() => !isFriend && fState === "idle" && handleFollow(p.name)}
+                                                            disabled={isFriend || fState !== "idle"}
+                                                            title={isFriend ? "✓ Friends" : fState === "sent" ? "Request sent!" : `Add ${p.name}`}
+                                                        >
+                                                            {isFriend ? "🤝" : fState === "sending" ? "…" : fState === "sent" ? "✓" : "👤+"}
+                                                        </button>
+                                                    )}
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+
+                                    <button
+                                        id="btn-ready"
+                                        className={`btn-ready ${isReady ? "active" : ""}`}
+                                        onClick={handleReady}
+                                    >
+                                        {isReady ? "✅ Ready!" : "Click to Ready"}
+                                    </button>
+
+                                    {error && <p className="lobby-error">{error}</p>}
+
+                                    <p className="start-hint">
+                                        All players must be ready to start
+                                    </p>
+
+                                    <Voice name={playerName} room={inputRoom || "lobby"} />
                                 </div>
-                                <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '5px' }}>
-                                    Share this code with friends to join
-                                </div>
+
+                                {/* Invite Friends Panel */}
+                                {friendList.length > 0 && (
+                                    <div className="invite-panel">
+                                        <h2 className="sidebar-title">👥 Invite Friends</h2>
+                                        <ul className="friend-invite-list">
+                                            {friendList.map(f => {
+                                                const iStatus = inviteMap[f.username] || "idle";
+                                                return (
+                                                    <li key={f._id} className="friend-invite-item">
+                                                        <span className="player-avatar">{f.username.charAt(0).toUpperCase()}</span>
+                                                        <span className="player-name">{f.username}</span>
+                                                        <button
+                                                            className={`btn-invite ${iStatus === "sent" ? "invited" : ""}`}
+                                                            onClick={() => handleInviteFriend(f.username)}
+                                                            disabled={iStatus === "sending" || iStatus === "sent"}
+                                                        >
+                                                            {iStatus === "sent" ? "✓ Invited" : iStatus === "sending" ? "…" : "Invite"}
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* === Players sidebar === */}
-                            <div className="players-sidebar">
-                                <h2 className="sidebar-title">Players ({playerList.length}/5)</h2>
-                                <ul className="player-list">
-                                    {playerList.map((p) => (
-                                        <li key={p.id} className={`player-item ${p.id === socket.id ? "self" : ""}`}>
-                                            <span className="player-avatar">
-                                                {p.name.charAt(0).toUpperCase()}
-                                            </span>
-                                            <span className="player-name">
-                                                {p.name}
-                                                {p.id === socket.id && " (you)"}
-                                            </span>
-                                            <span className={`ready-badge ${p.ready ? "ready" : "not-ready"}`}>
-                                                {p.ready ? "✓ Ready" : "Waiting"}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-
-                                <button
-                                    id="btn-ready"
-                                    className={`btn-ready ${isReady ? "active" : ""}`}
-                                    onClick={handleReady}
-                                    disabled={gameState === "countdown"}
-                                >
-                                    {isReady ? "✅ Ready!" : "Click to Ready"}
-                                </button>
-
-                                {error && <p className="lobby-error">{error}</p>}
-
-                                <p className="start-hint">
-                                    {gameState === "countdown"
-                                        ? "🚀 Starting…"
-                                        : "Need 2+ players all ready to start"}
-                                </p>
-
-                                {/* === Voice Chat (archit2 Task 4) === */}
-                                <Voice name={playerName} room={inputRoom || "lobby"} />
-                            </div>
-
-                            {/* === Chat panel === */}
+                            {/* === RIGHT COLUMN — Chat === */}
                             <div className="chat-panel">
                                 <h2 className="sidebar-title">💬 Room Chat</h2>
 
@@ -387,12 +530,9 @@ export default function Lobby() {
                                         onChange={(e) => setChatInput(e.target.value)}
                                         maxLength={300}
                                     />
-                                    <button type="submit" className="btn-send" id="btn-send-chat">
-                                        Send
-                                    </button>
+                                    <button type="submit" className="btn-send" id="btn-send-chat">Send</button>
                                 </form>
                             </div>
-
                         </div>
                     </div>
                 )}

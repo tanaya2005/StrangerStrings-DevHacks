@@ -5,6 +5,8 @@
 
 import User from "../models/User.js";
 import { updateAchievement } from "../services/achievementService.js";
+import Message from "../models/Message.js";
+import Game from "../models/Game.js";
 
 /**
  * In-memory room store.
@@ -29,8 +31,8 @@ const rooms = {};
 // ---- Constants ----
 const MAX_PLAYERS_PER_ROOM = 5;   // Hard cap per room
 const MOVE_THROTTLE_MS = 50;       // Min ms between move broadcasts
-const COUNTDOWN_SECONDS = 3;       // Countdown before race starts
-const MATCH_RESULTS_DURATION = 10000; // 10 seconds
+const LOBBY_COUNTDOWN_SECONDS = 15;  // seconds in 3D lobby before map loads
+const MATCH_RESULTS_DURATION = 10000; // 10 seconds show results
 
 // Trophy distribution
 const TROPHY_REWARDS = {
@@ -45,17 +47,18 @@ const TROPHY_REWARDS = {
 function createRoom(roomId) {
     return {
         players: {},
-        gameState: "waiting",   // waiting → countdown → playing → finished
+        gameState: "waiting",   // waiting → lobby → playing → finished
         startTime: null,
-        finishedOrder: [],       // socket IDs in finish order
-        chatMessages: [],        // waiting-room chat history
-        windDirection: 1,        // 1 = right, -1 = left (for Wind Tunnel Bridge)
-        windInterval: null,      // store interval so it can be cleared
-        // ── Avalanche state ──
+        finishedOrder: [],
+        chatMessages: [],
+        selectedMap: null,
+        windDirection: 1,
+        windInterval: null,
         avalancheActive: false,
-        avalancheZ: 60,          // current world Z of wave front
+        avalancheZ: 60,
         avalancheSpeed: 8,
         avalancheInterval: null,
+        lobbyInterval: null,    // 15s countdown interval
     };
 }
 
@@ -267,6 +270,50 @@ async function distributeTrophies(io, roomId, room) {
 }
 
 /**
+ * Save a completed game to MongoDB.
+ */
+async function saveGameRecord(roomId, room) {
+    try {
+        const allPlayers = Object.values(room.players);
+        const finishedOrder = room.finishedOrder || [];
+        const endedAt = new Date();
+        const startedAt = room.gameStartedAt ? new Date(room.gameStartedAt) : new Date(Date.now() - (room.startTime || 0));
+
+        const playerResults = allPlayers.map(p => {
+            const place = finishedOrder.indexOf(p.id);
+            return {
+                socketId: p.id,
+                username: p.name,
+                place: place >= 0 ? place + 1 : null,
+                eliminated: p.eliminated || false,
+                finishTime: p.finishTime || null,
+                trophiesEarned: place >= 0 ? (TROPHY_REWARDS[place + 1] || 0) : 0,
+            };
+        });
+
+        const winner = allPlayers.find(p => !p.eliminated && p.finished &&
+            room.finishedOrder[0] === p.id);
+
+        await Game.findOneAndUpdate(
+            { roomId, status: "in_progress" },
+            {
+                $set: {
+                    status: "completed",
+                    endedAt,
+                    durationMs: endedAt - startedAt,
+                    players: playerResults,
+                    winnerUsername: winner?.name || null,
+                }
+            },
+            { new: true }
+        );
+        console.log(`[Game] Saved record for room ${roomId}`);
+    } catch (err) {
+        console.error("[saveGameRecord] Error:", err);
+    }
+}
+
+/**
  * After every elimination / finish check, see if only 1 player is left
  * un-eliminated and un-finished → they become the winner.
  */
@@ -297,6 +344,11 @@ async function checkElimination(io, roomId, room) {
 
         // Distribute trophies and show match results
         await distributeTrophies(io, roomId, room);
+<<<<<<< HEAD
+=======
+        // Save to DB
+        await saveGameRecord(roomId, room);
+>>>>>>> 332b0521e5a8270734e25832af7cd0e3d2c476c4
 
         // After 10 seconds, reset room
         setTimeout(() => {
@@ -312,6 +364,11 @@ async function checkElimination(io, roomId, room) {
 
         // Distribute trophies even if all eliminated
         await distributeTrophies(io, roomId, room);
+<<<<<<< HEAD
+=======
+        // Save to DB
+        await saveGameRecord(roomId, room);
+>>>>>>> 332b0521e5a8270734e25832af7cd0e3d2c476c4
 
         // After 10 seconds, reset room
         setTimeout(() => {
@@ -321,12 +378,108 @@ async function checkElimination(io, roomId, room) {
 }
 
 // ============================================================
+//  Module-level DM tracking (survives individual connections)
+//  Maps userId (MongoDB string) → current socketId
+// ============================================================
+const dmUserMap = new Map(); // userId → socketId
+
+/** Compute the deterministic private-chat room name for two users */
+function dmRoom(idA, idB) {
+    return [idA, idB].sort().join("___dm___");
+}
+
+// ============================================================
 //  Main export – call this once in server.js
+//  Returns { rooms } so admin controller can access live state.
 // ============================================================
 export function registerGameSocket(io) {
 
     io.on("connection", (socket) => {
         console.log(`[Socket] Connected: ${socket.id}`);
+
+        // --------------------------------------------------------
+        //  dm:register
+        //  Called as soon as the Friends page mounts.
+        //  Payload: { userId }  (the user's MongoDB _id string)
+        //  Allows the server to route inbound DMs to this socket.
+        // --------------------------------------------------------
+        socket.on("dm:register", ({ userId }) => {
+            if (!userId) return;
+            socket.data.dmUserId = userId;
+            dmUserMap.set(userId, socket.id);
+            console.log(`[DM] Registered ${userId} → ${socket.id}`);
+        });
+
+        // --------------------------------------------------------
+        //  dm:join
+        //  Called when the user opens a chat with a friend.
+        //  Payload: { myId, friendId }  (both MongoDB _id strings)
+        //  Both clients compute the SAME sorted room name.
+        // --------------------------------------------------------
+        socket.on("dm:join", ({ myId, friendId }) => {
+            if (!myId || !friendId) return;
+            const room = dmRoom(myId, friendId);
+            socket.join(room);
+            // Store so we can clean up on disconnect
+            socket.data.dmUserId = myId;
+            dmUserMap.set(myId, socket.id);
+            console.log(`[DM] ${myId} joined room ${room}`);
+        });
+
+        // --------------------------------------------------------
+        //  dm:send
+        //  Payload: { myId, friendId, text }
+        //  Saves message to DB → emits dm:receive to the private room.
+        // --------------------------------------------------------
+        socket.on("dm:send", async ({ myId, friendId, text }) => {
+            if (!myId || !friendId || !text?.trim()) return;
+
+            const room = dmRoom(myId, friendId);
+            const trimmed = text.trim().slice(0, 500);
+
+            try {
+                const msg = await Message.create({
+                    participants: [myId, friendId].sort(),
+                    sender: myId,
+                    text: trimmed,
+                });
+
+                io.to(room).emit("dm:receive", {
+                    _id: msg._id,
+                    sender: myId,
+                    text: msg.text,
+                    createdAt: msg.createdAt,
+                });
+
+                console.log(`[DM] ${myId} → ${friendId}: "${trimmed.slice(0, 40)}"`);
+            } catch (err) {
+                console.error("[DM] dm:send error:", err);
+                socket.emit("dm:error", { error: "Message could not be saved" });
+            }
+        });
+
+        // --------------------------------------------------------
+        //  sendRoomInvite
+        //  { toUsername, roomCode }
+        //  Finds the target socket (if online) and forwards the invite.
+        // --------------------------------------------------------
+        socket.on("sendRoomInvite", ({ toUsername, roomCode }) => {
+            if (!toUsername || !roomCode) return;
+            const fromName = socket.data.playerName || "Someone";
+
+            // Search all connected sockets for one with matching playerName
+            // (same socket.data.playerName set on joinRoom)
+            const allSockets = io.sockets.sockets;
+            let delivered = false;
+            for (const [, s] of allSockets) {
+                if (s.data.playerName?.toLowerCase() === toUsername.toLowerCase() && s.id !== socket.id) {
+                    s.emit("roomInvite", { fromName, roomCode });
+                    delivered = true;
+                    break;
+                }
+            }
+            console.log(`[Invite] ${fromName} → ${toUsername}: room ${roomCode} — delivered: ${delivered}`);
+        });
 
         // --------------------------------------------------------
         //  joinRoom
@@ -410,8 +563,9 @@ export function registerGameSocket(io) {
                     players: getPlayerList(room),
                 });
 
-                // Store roomId on the socket so we can clean up on disconnect
+                // Store roomId + playerName on socket for cleanup & invite lookup
                 socket.data.roomId = roomId;
+                socket.data.playerName = playerName;
 
             } catch (err) {
                 console.error("[joinRoom error]", err);
@@ -433,36 +587,69 @@ export function registerGameSocket(io) {
             const player = room.players[socket.id];
             if (!player) return;
 
-            // Toggle ready
+            // Toggle ready state
             player.ready = !player.ready;
-
-            // Broadcast updated player list so UI shows ready status
             io.to(roomId).emit("playersUpdated", { players: getPlayerList(room) });
 
-            // Check if all players (min 2) are ready
+            // Check if ALL players (min 1) are ready
             const allPlayers = Object.values(room.players);
-            const allReady = allPlayers.length >= 2 && allPlayers.every((p) => p.ready);
+            const allReady = allPlayers.length >= 1 && allPlayers.every((p) => p.ready);
 
             if (allReady && room.gameState === "waiting") {
-                room.gameState = "countdown";
+                room.gameState = "lobby";  // 3D lobby phase
 
-                console.log(`[Room ${roomId}] All ready – countdown starting`);
-                io.to(roomId).emit("countdownStarted", { seconds: COUNTDOWN_SECONDS });
+                // Pick map NOW so we can show it during countdown
+                const MAPS = ["frozenfrenzy", "lavahell", "honeycomb", "neonparadox", "cryovoid"];
+                room.selectedMap = MAPS[Math.floor(Math.random() * MAPS.length)];
 
-                // After countdown – start the game
-                setTimeout(() => {
-                    room.gameState = "playing";
-                    room.startTime = Date.now();
+                console.log(`[Room ${roomId}] All ready – entering 3D lobby. Map pre-selected: ${room.selectedMap}`);
 
-                    io.to(roomId).emit("gameStarted", {
-                        startTime: room.startTime,
-                        players: getPlayerList(room),
-                    });
-                    console.log(`[Room ${roomId}] Game started!`);
+                // Tell all clients: go to the 3D lobby page immediately
+                io.to(roomId).emit("allReadyMoveToLobby", { map: room.selectedMap });
 
-                    // Start synced wind direction for Wind Tunnel Bridge
-                    startWindBroadcast(io, roomId, room);
-                }, COUNTDOWN_SECONDS * 1000);
+                // Start 15-second server-side countdown
+                let timeLeft = LOBBY_COUNTDOWN_SECONDS;
+
+                // Clear any stale interval
+                if (room.lobbyInterval) clearInterval(room.lobbyInterval);
+
+                // Emit first tick immediately
+                io.to(roomId).emit("lobbyCountdown", { timeLeft });
+
+                room.lobbyInterval = setInterval(() => {
+                    timeLeft -= 1;
+                    io.to(roomId).emit("lobbyCountdown", { timeLeft });
+
+                    if (timeLeft <= 0) {
+                        clearInterval(room.lobbyInterval);
+                        room.lobbyInterval = null;
+
+                        // Start the game
+                        room.gameState = "playing";
+                        room.startTime = Date.now();
+                        room.gameStartedAt = Date.now();
+
+                        console.log(`[Room ${roomId}] Lobby countdown done – starting map: ${room.selectedMap}`);
+
+                        // Create a Game record in MongoDB now the map is starting
+                        Game.create({
+                            roomId,
+                            map: room.selectedMap,
+                            status: "in_progress",
+                            startedAt: new Date(),
+                            players: Object.values(room.players).map(p => ({ socketId: p.id, username: p.name })),
+                        }).catch(err => console.error("[Game.create]", err));
+
+                        io.to(roomId).emit("startGame", {
+                            map: room.selectedMap,
+                            startTime: room.startTime,
+                            players: getPlayerList(room),
+                        });
+
+                        // Start wind for FrozenFrenzy / Wind Tunnel
+                        startWindBroadcast(io, roomId, room);
+                    }
+                }, 1000);
             }
         });
 
@@ -578,6 +765,8 @@ export function registerGameSocket(io) {
 
                 // Distribute trophies and show match results
                 await distributeTrophies(io, roomId, room);
+                // Save to DB
+                await saveGameRecord(roomId, room);
 
                 // ---- Achievements for each finisher ----
                 for (let i = 0; i < room.finishedOrder.length; i++) {
@@ -803,25 +992,39 @@ export function registerGameSocket(io) {
             // Remove player from room
             delete room.players[socket.id];
 
-            // If game is in countdown and falls below 2, cancel countdown
-            if (room.gameState === "countdown" && playerCount(room) < 2) {
+            // If game is in lobby/countdown phase and a player leaves, reset
+            if ((room.gameState === "lobby" || room.gameState === "countdown") && playerCount(room) < 1) {
                 room.gameState = "waiting";
-                // Reset ready state for remaining players
+                if (room.lobbyInterval) { clearInterval(room.lobbyInterval); room.lobbyInterval = null; }
                 Object.values(room.players).forEach((p) => (p.ready = false));
-                io.to(roomId).emit("countdownCancelled", {
-                    reason: "Not enough players",
-                });
+                io.to(roomId).emit("countdownCancelled", { reason: "Not enough players" });
             }
 
             // Clean up empty rooms to save memory
             if (playerCount(room) === 0) {
                 if (room.windInterval) clearInterval(room.windInterval);
                 if (room.avalancheInterval) clearInterval(room.avalancheInterval);
+                if (room.lobbyInterval) clearInterval(room.lobbyInterval);
                 delete rooms[roomId];
                 console.log(`[Room ${roomId}] Deleted (empty)`);
             }
         });
 
+        // ---- DM cleanup on disconnect ----
+        socket.on("disconnect", () => {
+            if (socket.data.dmUserId) {
+                // Only delete from map if this socket is still the current one
+                // (user may have re-connected on another tab)
+                if (dmUserMap.get(socket.data.dmUserId) === socket.id) {
+                    dmUserMap.delete(socket.data.dmUserId);
+                    console.log(`[DM] Unregistered ${socket.data.dmUserId}`);
+                }
+            }
+        });
+
     }); // end io.on("connection")
+
+    // Return rooms so admin controller can read live state
+    return { rooms };
 
 } // end registerGameSocket

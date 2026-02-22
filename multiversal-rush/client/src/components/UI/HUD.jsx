@@ -43,12 +43,15 @@ export default function HUD({ emitMethods, currentLevel }) {
     };
 
     const levelLabel = {
-        hub: "🌌 Hub World",
-        cyberverse: "🌐 Cyberverse",
+        hub: "🎮 Game Lobby",
+        frozenfrenzy: "🌨️ Frozen Frenzy",
+        lavahell: "🔥 Lava Hell",
         honeycomb: "🍯 Honeycomb",
+        neonparadox: "🔮 Neon Paradox",
         cryovoid: "❄️ Cryo Void",
-        world2: "🌋 Lava Hell",
-    }[currentLevel] || "🌌 Hub World";
+        cyberverse: "🌐 Cyberverse",
+        world2: "🌋 World 2",
+    }[currentLevel] || "🎮 Game Lobby";
 
     const playerList = Object.values(players);
     const activePlayers = playerList.filter((p) => !p.eliminated);

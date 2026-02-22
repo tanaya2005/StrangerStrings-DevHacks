@@ -172,9 +172,14 @@ export default function Home() {
                         <span className="btn-text">Play Now</span>
                     </button>
 
+                    <button className="btn-secondary" onClick={() => navigate("/friends")}>
+                        <span className="btn-icon">👥</span>
+                        <span className="btn-text">Friends &amp; DMs</span>
+                    </button>
+
                     <button className="btn-secondary" onClick={() => navigate("/leaderboard")}>
                         <span className="btn-icon">🏆</span>
-                        <span className="btn-text">View Full Leaderboard</span>
+                        <span className="btn-text">Leaderboard</span>
                     </button>
 
                     <button className="btn-secondary" onClick={() => navigate("/achievements")}>

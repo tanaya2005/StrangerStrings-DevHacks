@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";
 import Leaderboard from "./pages/Leaderboard";
+import Friends from "./pages/Friends";
 import WorldTest from "./pages/WorldTest";
 import Achievements from "./pages/Achievements";
 
@@ -91,9 +92,18 @@ export default function App() {
           }
         />
 
+        <Route
+          path="/friends"
+          element={
+            <PrivateRoute>
+              <Friends />
+            </PrivateRoute>
+          }
+        />
+
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
-};
+}

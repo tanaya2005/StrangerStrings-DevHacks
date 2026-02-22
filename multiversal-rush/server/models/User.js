@@ -39,6 +39,20 @@ const UserSchema = new mongoose.Schema(
         trophies: { type: Number, default: 0 },
         wins: { type: Number, default: 0 },
         gamesPlayed: { type: Number, default: 0 },
+        banned: { type: Boolean, default: false },
+
+        // ---- Friends ----
+        friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+        // Pending incoming friend requests
+        // status: "pending" | "accepted" | "declined"
+        friendRequests: [
+            {
+                from: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+                status: { type: String, enum: ["pending", "accepted", "declined"], default: "pending" },
+                createdAt: { type: Date, default: Date.now },
+            },
+        ],
 
         // ---- Achievements ----
         achievements: {

@@ -14,7 +14,7 @@ import React, { useRef, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text, Float } from '@react-three/drei';
 import * as THREE from 'three';
-import Player from '../Player/Player';
+import PlayerCryo from '../Player/PlayerCryo';
 import Platform from '../Obstacles/Platform';
 import { SnowCannon } from '../Obstacles/SnowCannon';
 import WindBridge from '../Obstacles/WindBridge';
@@ -26,7 +26,7 @@ import {
     SnowParticles
 } from '../Environment/FrozenFrenzyComponents';
 
-export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell }) {
+export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, emitWorldTransition }) {
     const playerRef = useRef();
     const [eliminated, setEliminated] = useState(false);
 
@@ -97,7 +97,7 @@ export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell }) 
             ═══════════════════════════════════════════════════ */}
 
             {/* Snow Start (not slippery — normal control to start) */}
-            <Platform position={[0, -0.5, -7]} scale={[30, 1, 15]} type="static" color="#ffffff" />
+            <Platform position={[0, -0.5, -5]} scale={[30, 1, 20]} type="static" color="#ffffff" />
 
             {/* Open Ice Field — wide, slippery, scattered bumpers */}
             <Platform position={[0, -0.25, -42]} scale={[28, 0.5, 55]} type="static" color="#b3e5fc" isSlippery={true} />
@@ -275,13 +275,13 @@ export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell }) 
                 onAvalancheEnd={() => console.log('❄️ Avalanche passed')}
             />
 
-            {/* ── Local Player ── */}
-            <Player
+            {/* ── Local Player (Cryo physics for ice/slide feel) ── */}
+            <PlayerCryo
                 ref={playerRef}
                 emitMove={emitMove}
                 emitFell={emitFell}
                 emitWorldTransition={() => { }}
-                world={3}
+                world={7}
                 startPosition={[0, 2, 0]}
             />
         </>
