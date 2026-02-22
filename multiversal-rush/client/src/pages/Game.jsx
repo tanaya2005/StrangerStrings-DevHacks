@@ -120,7 +120,7 @@ export default function Game() {
 
             if (map) {
                 setPhase(map);
-                setSelectedMap(null);
+                setSelectedMap(map);
             }
         });
 
@@ -247,7 +247,19 @@ export default function Game() {
                 </div>
             )}
 
-            <Canvas camera={{ position: [0, 6, 12], fov: 70 }} style={{ position: "absolute", inset: 0 }}>
+            <Canvas 
+                camera={{ position: [0, 6, 12], fov: 70 }} 
+                style={{ position: "absolute", inset: 0 }}
+                gl={{ 
+                    antialias: true, 
+                    alpha: false,
+                    powerPreference: "high-performance",
+                    failIfMajorPerformanceCaveat: false
+                }}
+                onCreated={({ gl }) => {
+                    gl.setClearColor('#87CEEB');
+                }}
+            >
                 <RemotePlayers />
 
                 {/* ── 3D Pre-Game Lobby (HubWorld) ── */}
@@ -267,6 +279,8 @@ export default function Game() {
                         emitMove={emitMove}
                         emitFinished={emitFinished}
                         emitFell={emitFell}
+                        emitAchievement={emitAchievement}
+                        emitWorldTransition={emitWorldTransition}
                     />
                 )}
 

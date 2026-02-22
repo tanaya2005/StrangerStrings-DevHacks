@@ -47,10 +47,10 @@ export default function Snowball({
             const impactZ = playerPos.z - worldPos.z;
             const len = Math.sqrt(impactX * impactX + impactZ * impactZ) || 1;
             // Normalize then scale by snowball size — bigger snowballs hit harder
-            const force = 6 + size * 2;
+            const force = 12 + size * 4; // STRONGER PUSH BACK
             const fx = (impactX / len) * force;
             const fz = (impactZ / len) * force;
-            const fy = 3.5; // always bumps the player upward a little
+            const fy = 5.0; // always bumps the player upward a little more
 
             // Use the new applyForce API (safe — no-op if not available)
             playerRef.current.applyForce?.(fx, fy, fz);

@@ -113,6 +113,43 @@ function startWindBroadcast(io, roomId, room) {
     }, 3000);
 }
 
+/** Start snow cannon firing for Frozen Frenzy map */
+function startCannonFiring(io, roomId, room) {
+    if (room.cannonIntervals) {
+        room.cannonIntervals.forEach(interval => clearInterval(interval));
+    }
+    room.cannonIntervals = [];
+
+    // Cannon definitions matching FrozenFrenzyArena.jsx
+    const cannons = [
+        { id: "cannon_A1", interval: 3000, delay: 0, speed: 8, size: 1.8 },
+        { id: "cannon_A2", interval: 3000, delay: 1500, speed: 14, size: 1.0 },
+        { id: "cannon_B1", interval: 2500, delay: 0, speed: 9, size: 2.0 },
+        { id: "cannon_B2", interval: 2500, delay: 800, speed: 15, size: 1.0 },
+        { id: "cannon_B3", interval: 2500, delay: 1600, speed: 11, size: 1.4 },
+    ];
+
+    cannons.forEach(cannon => {
+        setTimeout(() => {
+            const fire = () => {
+                if (room.gameState !== "playing") return;
+                io.to(roomId).emit("cannonFire", {
+                    cannonId: cannon.id,
+                    speed: cannon.speed,
+                    size: cannon.size,
+                    timestamp: Date.now()
+                });
+            };
+            
+            fire(); // Fire immediately after delay
+            const interval = setInterval(fire, cannon.interval);
+            room.cannonIntervals.push(interval);
+        }, cannon.delay);
+    });
+
+    console.log(`[Room ${roomId}] ❄️ Snow cannons activated`);
+}
+
 /** Trigger the avalanche for a room (called once when first player hits checkpoint) */
 function startAvalanche(io, roomId, room) {
     if (room.avalancheActive) return; // Already running
@@ -686,6 +723,7 @@ export function registerGameSocket(io) {
             // Clean up empty rooms
             if (playerCount(room) === 0) {
                 if (room.windInterval) clearInterval(room.windInterval);
+                if (room.cannonIntervals) room.cannonIntervals.forEach(i => clearInterval(i));
                 if (room.avalancheInterval) clearInterval(room.avalancheInterval);
                 if (room.lobbyInterval) clearInterval(room.lobbyInterval);
                 if (room.rankInterval) clearInterval(room.rankInterval);
@@ -721,6 +759,7 @@ export function registerGameSocket(io) {
                 room.selectedMap = null;
                 // Stop any leftover intervals
                 if (room.windInterval) clearInterval(room.windInterval);
+                if (room.cannonIntervals) room.cannonIntervals.forEach(i => clearInterval(i));
                 if (room.avalancheInterval) clearInterval(room.avalancheInterval);
                 if (room.lobbyInterval) clearInterval(room.lobbyInterval);
             }
@@ -761,7 +800,8 @@ export function registerGameSocket(io) {
 
                 // Pick map NOW so we can show it during countdown
                 const MAPS = ["frozenfrenzy", "lavahell", "honeycomb", "neonparadox", "cryovoid"];
-                room.selectedMap = MAPS[Math.floor(Math.random() * MAPS.length)];
+                // TESTING: Force frozen map
+                room.selectedMap = "frozenfrenzy"; // MAPS[Math.floor(Math.random() * MAPS.length)];
 
                 console.log(`[Room ${roomId}] All ready – entering 3D lobby. Map pre-selected: ${room.selectedMap}`);
 
@@ -810,6 +850,11 @@ export function registerGameSocket(io) {
 
                         // Start wind for FrozenFrenzy / Wind Tunnel
                         startWindBroadcast(io, roomId, room);
+                        
+                        // Start snow cannons for FrozenFrenzy
+                        if (room.selectedMap === 'frozenfrenzy') {
+                            startCannonFiring(io, roomId, room);
+                        }
                     }
                 }, 1000);
             }
@@ -1156,6 +1201,7 @@ export function registerGameSocket(io) {
             // Clean up empty rooms to save memory
             if (playerCount(room) === 0) {
                 if (room.windInterval) clearInterval(room.windInterval);
+                if (room.cannonIntervals) room.cannonIntervals.forEach(i => clearInterval(i));
                 if (room.avalancheInterval) clearInterval(room.avalancheInterval);
                 if (room.lobbyInterval) clearInterval(room.lobbyInterval);
                 delete rooms[roomId];

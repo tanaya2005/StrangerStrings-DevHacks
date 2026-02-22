@@ -1,292 +1,486 @@
 // ============================================================
-//  FrozenFrenzyArena.jsx — World 3
-//  5-Phase competitive race map for Multiversal Rush.
-//
-//  Phase 1 — Slippery Chaos Start      Z:   0 → −70   (22%)
-//  Phase 2 — Snowball Gauntlet         Z: −70 → −155  (48%)
-//  Phase 3 — Wind Tunnel Bridge        Z: −155 → −220  (67%)
-//  Phase 4 — Ice Slide Chaos           Z: −220 → −295  (92%)
-//  Phase 5 — Avalanche Finale          Z: −295 → −330  (100%)
-//
-//  Avalanche triggered server-side when first player hits Z < −220.
+//  FrozenFrenzyArena.jsx — Frozen Frenzy Map
+//  Complete race map with ice physics, snow cannons, wind tunnel, and ice slide
 // ============================================================
 import React, { useRef, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Float } from '@react-three/drei';
+import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import PlayerCryo from '../Player/PlayerCryo';
-import Platform from '../Obstacles/Platform';
-import { SnowCannon } from '../Obstacles/SnowCannon';
-import WindBridge from '../Obstacles/WindBridge';
-import IceSlide from '../Obstacles/IceSlide';
-import AvalancheWave from '../Obstacles/AvalancheWave';
-import {
-    SnowMountain,
-    SnowTree,
-    SnowParticles
-} from '../Environment/FrozenFrenzyComponents';
+import useStore from '../../store/store';
 
-export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, emitWorldTransition, hidePlayer = false }) {
-    const playerRef = useRef();
-    const [eliminated, setEliminated] = useState(false);
-
-    // ── Static Background Assets (generated once) ──────────────
-    const envAssets = useMemo(() => {
-        const mountains = [];
-        const trees = [];
-
-        for (let i = 0; i < 18; i++) {
-            mountains.push({
-                pos: [(Math.random() - 0.5) * 220, -10, -Math.random() * 340 - 20],
-                scale: [1.4 + Math.random(), 1 + Math.random() * 0.8, 1.4 + Math.random()]
-            });
+// ============================================================
+//  SNOW PARTICLES
+// ============================================================
+function SnowParticles({ count = 800 }) {
+    const points = useMemo(() => {
+        const positions = new Float32Array(count * 3);
+        const velocities = new Float32Array(count);
+        for (let i = 0; i < count; i++) {
+            positions[i * 3] = (Math.random() - 0.5) * 150;
+            positions[i * 3 + 1] = Math.random() * 60;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 350;
+            velocities[i] = 0.05 + Math.random() * 0.1;
         }
-        // Trees along track edges (both sides, full length)
-        for (let i = 0; i < 46; i++) {
-            const side = i % 2 === 0 ? 1 : -1;
-            trees.push({
-                pos: [side * (16 + Math.random() * 5), 0, -i * 7],
-                scale: [0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.4]
-            });
-        }
-        return { mountains, trees };
-    }, []);
+        return { positions, velocities };
+    }, [count]);
 
-    // ── Finish check ────────────────────────────────────────────
+    const ref = useRef();
+
     useFrame(() => {
-        if (!playerRef.current) return;
-        const z = playerRef.current.position.z;
-        if (z < -335 && z > -345) {
+        if (!ref.current) return;
+        const positions = ref.current.geometry.attributes.position.array;
+        for (let i = 0; i < count; i++) {
+            positions[i * 3 + 1] -= points.velocities[i];
+            if (positions[i * 3 + 1] < -5) {
+                positions[i * 3 + 1] = 60;
+            }
+        }
+        ref.current.geometry.attributes.position.needsUpdate = true;
+    });
+
+    return (
+        <points ref={ref}>
+            <bufferGeometry>
+                <bufferAttribute
+                    attach="attributes-position"
+                    count={count}
+                    array={points.positions}
+                    itemSize={3}
+                />
+            </bufferGeometry>
+            <pointsMaterial size={0.2} color="#ffffff" transparent opacity={0.7} />
+        </points>
+    );
+}
+
+// ============================================================
+//  SNOWBALL PROJECTILE
+// ============================================================
+function Snowball({ id, startPos, direction, speed, size, playerRef, onComplete }) {
+    const meshRef = useRef();
+    const [active, setActive] = useState(true);
+    const traveled = useRef(0);
+
+    useFrame((_, delta) => {
+        if (!active || !meshRef.current) return;
+
+        // Move
+        meshRef.current.position.x += direction.x * speed * delta;
+        meshRef.current.position.z += direction.z * speed * delta;
+        traveled.current += speed * delta;
+
+        // Rotate
+        meshRef.current.rotation.x += delta * 4;
+
+        // Check collision with player
+        if (playerRef?.current?.position) {
+            const pPos = playerRef.current.position;
+            const sPos = meshRef.current.position;
+            const dist = Math.sqrt(
+                (pPos.x - sPos.x) ** 2 +
+                (pPos.y - sPos.y) ** 2 +
+                (pPos.z - sPos.z) ** 2
+            );
+
+            if (dist < size + 0.6) {
+                // Hit! Apply strong knockback
+                const dx = pPos.x - sPos.x;
+                const dz = pPos.z - sPos.z;
+                const len = Math.sqrt(dx * dx + dz * dz) || 1;
+                
+                // Stronger pushback force based on snowball size
+                const force = 18 + size * 6;
+                const fx = (dx / len) * force;
+                const fz = (dz / len) * force;
+                const fy = 7; // Upward bump
+                
+                playerRef.current.applyForce?.(fx, fy, fz);
+                
+                console.log(`❄️ Snowball HIT! Knockback: (${fx.toFixed(1)}, ${fy}, ${fz.toFixed(1)})`);
+                
+                setActive(false);
+                onComplete?.(id);
+            }
+        }
+
+        // Despawn after traveling far
+        if (traveled.current > 40) {
+            setActive(false);
+            onComplete?.(id);
+        }
+    });
+
+    if (!active) return null;
+
+    return (
+        <mesh ref={meshRef} position={startPos} castShadow>
+            <sphereGeometry args={[size, 12, 12]} />
+            <meshStandardMaterial
+                color="#ffffff"
+                emissive="#b3e5fc"
+                emissiveIntensity={0.4}
+            />
+        </mesh>
+    );
+}
+
+// ============================================================
+//  SNOW CANNON
+// ============================================================
+function SnowCannon({ position, direction, speed, size, interval, delay, playerRef }) {
+    const [projectiles, setProjectiles] = useState([]);
+    const timerRef = useRef(0);
+    const delayDone = useRef(false);
+
+    useFrame((_, delta) => {
+        timerRef.current += delta;
+
+        if (!delayDone.current && timerRef.current >= delay) {
+            delayDone.current = true;
+            fire();
+            timerRef.current = 0;
+        }
+
+        if (delayDone.current && timerRef.current >= interval) {
+            fire();
+            timerRef.current = 0;
+        }
+    });
+
+    const fire = () => {
+        const id = `${position[0]}_${position[2]}_${Date.now()}`;
+        setProjectiles(prev => [...prev, { id, startPos: [...position] }]);
+    };
+
+    const handleComplete = (id) => {
+        setProjectiles(prev => prev.filter(p => p.id !== id));
+    };
+
+    return (
+        <group>
+            {/* Cannon barrel */}
+            <mesh position={position} rotation={[0, Math.atan2(direction.x, direction.z), Math.PI / 2]}>
+                <cylinderGeometry args={[0.8, 1, 2.5, 12]} />
+                <meshStandardMaterial color="#37474f" metalness={0.7} />
+            </mesh>
+
+            {/* Projectiles */}
+            {projectiles.map(p => (
+                <Snowball
+                    key={p.id}
+                    id={p.id}
+                    startPos={p.startPos}
+                    direction={direction}
+                    speed={speed}
+                    size={size}
+                    playerRef={playerRef}
+                    onComplete={handleComplete}
+                />
+            ))}
+        </group>
+    );
+}
+
+// ============================================================
+//  WIND ZONE
+// ============================================================
+function WindZone({ minZ, maxZ, force, playerRef }) {
+    useFrame((_, delta) => {
+        if (!playerRef?.current?.position) return;
+        const pz = playerRef.current.position.z;
+
+        if (pz >= minZ && pz <= maxZ) {
+            // Apply wind force
+            const windForce = force * (1 + Math.sin(Date.now() * 0.002) * 0.5);
+            playerRef.current.applyForce?.(windForce * delta, 0, 0);
+        }
+    });
+
+    return null;
+}
+
+// ============================================================
+//  ICE SLIDE
+// ============================================================
+function IceSlide({ position, playerRef }) {
+    const slideRef = useRef();
+
+    useFrame((_, delta) => {
+        if (!playerRef?.current) return;
+        const pPos = playerRef.current.position;
+
+        // Check if player is on slide (Z: -220 to -295, X: -7 to +7)
+        const dx = pPos.x - position[0];
+        const dz = pPos.z - position[2];
+
+        if (Math.abs(dx) < 7 && dz < 5 && dz > -60 && pPos.y > position[1] - 5 && pPos.y < position[1] + 10) {
+            // Force downward movement
+            if (playerRef.current.velocityXZ) {
+                playerRef.current.velocityXZ.z -= 50 * delta;
+                if (playerRef.current.velocityXZ.z > -20) {
+                    playerRef.current.velocityXZ.z = -20;
+                }
+                // Reduce side movement
+                playerRef.current.velocityXZ.x *= 0.95;
+            }
+        }
+    });
+
+    return (
+        <group ref={slideRef} position={position} rotation={[-Math.PI / 8, 0, 0]}>
+            {/* Left lane */}
+            <mesh position={[-4, 0, -27]} castShadow receiveShadow>
+                <boxGeometry args={[4, 0.5, 54]} />
+                <meshStandardMaterial color="#80deea" roughness={0.1} metalness={0.2} />
+            </mesh>
+            {/* Center lane */}
+            <mesh position={[0, 0, -27]} castShadow receiveShadow>
+                <boxGeometry args={[4, 0.5, 54]} />
+                <meshStandardMaterial color="#4dd0e1" roughness={0.1} metalness={0.2} />
+            </mesh>
+            {/* Right lane */}
+            <mesh position={[4, 0, -27]} castShadow receiveShadow>
+                <boxGeometry args={[4, 0.5, 54]} />
+                <meshStandardMaterial color="#80deea" roughness={0.1} metalness={0.2} />
+            </mesh>
+
+            {/* Rails */}
+            <mesh position={[-6.5, 0.8, -27]}>
+                <boxGeometry args={[0.5, 1.6, 54]} />
+                <meshStandardMaterial color="#01579b" />
+            </mesh>
+            <mesh position={[6.5, 0.8, -27]}>
+                <boxGeometry args={[0.5, 1.6, 54]} />
+                <meshStandardMaterial color="#01579b" />
+            </mesh>
+        </group>
+    );
+}
+
+// ============================================================
+//  MAIN WORLD
+// ============================================================
+export default function FrozenFrenzyArena({ emitMove, emitFinished, emitFell, emitAchievement, hidePlayer = false }) {
+    const playerRef = useRef();
+    const finishedRef = useRef(false);
+    const checkpointRef = useRef([0, 2, 0]); // Current respawn point
+
+    // Platform configuration
+    const platforms = useMemo(() => [
+        // Phase 1 - Start
+        { pos: [0, -0.5, -5], size: [30, 1, 20], isSlippery: false },
+        { pos: [0, -0.25, -40], size: [28, 0.5, 70], isSlippery: true },
+
+        // Phase 2 - Gauntlet
+        { pos: [0, -0.25, -110], size: [22, 0.5, 80], isSlippery: true },
+
+        // Phase 3 - Wind Tunnel
+        { pos: [0, 1, -160], size: [8, 0.5, 20], isSlippery: true },
+        { pos: [-2, 1.2, -175], size: [10, 0.5, 8], isSlippery: true },
+        { pos: [3, 1.4, -183], size: [10, 0.5, 8], isSlippery: true },
+        { pos: [0, 1.2, -191], size: [10, 0.5, 8], isSlippery: true },
+        { pos: [-2, 1, -199], size: [10, 0.5, 8], isSlippery: true },
+        { pos: [0, 1, -207], size: [12, 0.5, 8], isSlippery: true },
+        { pos: [0, 1, -218], size: [16, 0.5, 14], isSlippery: true },
+
+        // Phase 4 - Slide entry
+        { pos: [0, 3, -225], size: [16, 0.5, 8], isSlippery: true },
+        // Slide platforms (with rotation)
+        { pos: [-4, 2, -252], size: [4, 0.5, 54], isSlippery: true, isSlide: true, rot: [-Math.PI / 8, 0, 0] },
+        { pos: [0, 2, -252], size: [4, 0.5, 54], isSlippery: true, isSlide: true, rot: [-Math.PI / 8, 0, 0] },
+        { pos: [4, 2, -252], size: [4, 0.5, 54], isSlippery: true, isSlide: true, rot: [-Math.PI / 8, 0, 0] },
+
+        // Phase 5 - Final straight
+        { pos: [0, -18.5, -310], size: [30, 1, 80], isSlippery: true },
+    ], []);
+
+    // Finish check + Checkpoint system + Fall respawn
+    useFrame(() => {
+        if (!playerRef.current || finishedRef.current) return;
+        const pos = playerRef.current.position;
+        const z = pos.z;
+
+        // Checkpoint updates - ONLY update if moving forward (z decreasing)
+        // Checkpoint 1: After Phase 1 (ice field)
+        if (z < -75 && checkpointRef.current[2] === 0) {
+            checkpointRef.current = [0, 1, -75];
+            console.log('✅ Checkpoint 1: After Ice Field');
+        }
+        
+        // Checkpoint 2: After Phase 2 (snow cannons)
+        if (z < -155 && checkpointRef.current[2] === -75) {
+            checkpointRef.current = [0, 2, -155];
+            console.log('✅ Checkpoint 2: After Snow Cannons');
+        }
+        
+        // Checkpoint 3: After Phase 3 (wind tunnel)
+        if (z < -220 && checkpointRef.current[2] === -155) {
+            checkpointRef.current = [0, 2, -220];
+            console.log('✅ Checkpoint 3: After Wind Tunnel');
+        }
+        
+        // Checkpoint 4: After Phase 4 (ice slide)
+        if (z < -285 && checkpointRef.current[2] === -220) {
+            checkpointRef.current = [0, -17, -285];
+            console.log('✅ Checkpoint 4: After Ice Slide');
+        }
+
+        // Fall detection - respawn at checkpoint
+        if (pos.y < -20) {
+            console.log('💀 Fell! Respawning at checkpoint:', checkpointRef.current);
+            pos.set(...checkpointRef.current);
+            if (playerRef.current.velocityXZ) {
+                playerRef.current.velocityXZ.set(0, 0, 0);
+            }
+            if (playerRef.current.velocityY !== undefined) {
+                playerRef.current.velocityY = 0;
+            }
+            emitFell?.();
+        }
+
+        // Finish check
+        if (z < -340) {
+            finishedRef.current = true;
             emitFinished?.();
         }
     });
 
     return (
-        <>
-            {/* ── Atmosphere ── */}
-            <color attach="background" args={["#b3e5fc"]} />
-            <fog attach="fog" args={["#dff6ff", 50, 220]} />
-            <ambientLight intensity={0.55} />
-            <directionalLight position={[15, 60, 10]} intensity={1.2} color="#ffffff" />
-            <pointLight position={[0, 12, -60]} color="#80deea" intensity={0.8} />
-            <pointLight position={[0, 12, -200]} color="#4fc3f7" intensity={0.7} />
+        <group>
+            {/* Atmosphere */}
+            <color attach="background" args={["#d0e8f2"]} />
+            <fog attach="fog" args={["#e3f2fd", 40, 250]} />
+            <ambientLight intensity={0.7} />
+            <directionalLight position={[20, 60, 10]} intensity={1.3} color="#ffffff" castShadow />
+            <pointLight position={[0, 15, -60]} color="#80deea" intensity={1.2} />
+            <pointLight position={[0, 15, -200]} color="#4fc3f7" intensity={1.0} />
 
-            {/* ── Snow particles ── */}
-            <SnowParticles count={900} area={[180, 70, 360]} />
+            {/* Snow particles */}
+            <SnowParticles count={800} />
 
-            {/* ── Background ── */}
-            {envAssets.mountains.map((m, i) => (
-                <SnowMountain key={`m${i}`} position={m.pos} scale={m.scale} />
+            {/* Title */}
+            <Text position={[0, 8, -5]} fontSize={2} color="#0288d1" anchorX="center">
+                FROZEN FRENZY
+            </Text>
+
+            {/* ===== PLATFORMS ===== */}
+            {platforms.map((p, i) => (
+                <mesh key={`plat-${i}`} position={p.pos} rotation={p.rot || [0, 0, 0]} castShadow receiveShadow>
+                    <boxGeometry args={p.size} />
+                    <meshStandardMaterial
+                        color={p.isSlippery ? "#b3e5fc" : "#ffffff"}
+                        roughness={p.isSlippery ? 0.2 : 0.8}
+                    />
+                </mesh>
             ))}
-            {envAssets.trees.map((t, i) => (
-                <SnowTree key={`t${i}`} position={t.pos} scale={t.scale} />
-            ))}
 
-            {/* ── Title sign ── */}
-            <Float speed={2} rotationIntensity={0.3} floatIntensity={0.4}>
-                <Text position={[0, 9, -5]} fontSize={2.2} color="#0288d1"
-                    anchorX="center" outlineWidth={0.08} outlineColor="#ffffff">
-                    FROZEN FRENZY
-                </Text>
-            </Float>
-
-            {/* ═══════════════════════════════════════════════════
-                PHASE 1 — SLIPPERY CHAOS START   Z: 0 → -70
-                Purpose: Momentum tutorial. Organic player collisions.
-                No cannons. No wind. No slide.
-            ═══════════════════════════════════════════════════ */}
-
-            {/* Snow Start (not slippery — normal control to start) */}
-            <Platform position={[0, -0.5, -5]} scale={[30, 1, 20]} type="static" color="#ffffff" />
-
-            {/* Open Ice Field — extended to Z:-72 so it butts up against Phase 2 */}
-            <Platform position={[0, -0.25, -40]} scale={[28, 0.5, 70]} type="static" color="#b3e5fc" isSlippery={true} />
-
-            {/* Scattered ice bumpers — natural multiplayer collision points */}
+            {/* Ice bumpers */}
             {[
                 [-7, 0.4, -22], [5, 0.4, -30], [-3, 0.4, -45],
                 [8, 0.4, -55], [-9, 0.4, -62], [2, 0.4, -67]
             ].map(([x, y, z], i) => (
-                <mesh key={`bump${i}`} position={[x, y, z]} castShadow>
+                <mesh key={`bump-${i}`} position={[x, y, z]} castShadow>
                     <boxGeometry args={[2, 0.8, 2]} />
                     <meshStandardMaterial color="#e1f5fe" />
                 </mesh>
             ))}
 
-            {/* Phase label (decorative) */}
-            <Text position={[0, 3, -42]} fontSize={0.6} color="#0277bd" anchorX="center">
-                SLIPPERY ICE
-            </Text>
+            {/* Checkpoint indicators */}
+            <mesh position={[0, 1.1, -75]}>
+                <cylinderGeometry args={[1.5, 1.5, 0.2, 16]} />
+                <meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.6} transparent opacity={0.4} />
+            </mesh>
+            <mesh position={[0, 2.1, -155]}>
+                <cylinderGeometry args={[1.5, 1.5, 0.2, 16]} />
+                <meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.6} transparent opacity={0.4} />
+            </mesh>
+            <mesh position={[0, 2.1, -220]}>
+                <cylinderGeometry args={[1.5, 1.5, 0.2, 16]} />
+                <meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.6} transparent opacity={0.4} />
+            </mesh>
+            <mesh position={[0, -16.9, -285]}>
+                <cylinderGeometry args={[1.5, 1.5, 0.2, 16]} />
+                <meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.6} transparent opacity={0.4} />
+            </mesh>
 
-
-            {/* ═══════════════════════════════════════════════════
-                PHASE 2 — SNOWBALL GAUNTLET   Z: -70 → -155
-                Slightly narrower. 5 staggered cannons across 2 zones.
-                Rule: at least 1 clear lane at all times.
-            ═══════════════════════════════════════════════════ */}
-
-            {/* Gauntlet Surface — extended to Z:-72 to close Phase 1→2 gap */}
-            <Platform position={[0, -0.25, -113]} scale={[22, 0.5, 90]} type="static" color="#81d4fa" isSlippery={true} />
-
-            {/* Cannon Zone A — 2 cannons, staggered 1.5s apart */}
-            {/* Cannon 1: Left side, large ball, slow */}
+            {/* ===== SNOW CANNONS ===== */}
             <SnowCannon
-                id="cannon_A1"
                 position={[-12, 1, -88]}
-                rotation={[0, 0, -Math.PI / 2]}
+                direction={{ x: 1, z: 0 }}
                 speed={8}
                 size={1.8}
-                interval={3000}
-                initialDelay={0}
+                interval={3}
+                delay={0}
                 playerRef={playerRef}
             />
-            {/* Cannon 2: Right side, small ball, fast — fires 1.5s after A1 */}
             <SnowCannon
-                id="cannon_A2"
                 position={[12, 1, -105]}
-                rotation={[0, 0, Math.PI / 2]}
+                direction={{ x: -1, z: 0 }}
                 speed={14}
                 size={1.0}
-                interval={3000}
-                initialDelay={1500}
+                interval={3}
+                delay={1.5}
                 playerRef={playerRef}
             />
-
-            {/* Breathing Room Z: -108 → -118 (no cannons, open path) */}
-
-            {/* Cannon Zone B — 3 cannons, staggered 0.8s each */}
-            {/* Cannon 3: Left, large/slow */}
             <SnowCannon
-                id="cannon_B1"
                 position={[-12, 1, -125]}
-                rotation={[0, 0, -Math.PI / 2]}
+                direction={{ x: 1, z: 0 }}
                 speed={9}
                 size={2.0}
-                interval={2500}
-                initialDelay={0}
+                interval={2.5}
+                delay={0}
                 playerRef={playerRef}
             />
-            {/* Cannon 4: Right, small/fast */}
             <SnowCannon
-                id="cannon_B2"
                 position={[12, 1, -138]}
-                rotation={[0, 0, Math.PI / 2]}
+                direction={{ x: -1, z: 0 }}
                 speed={15}
                 size={1.0}
-                interval={2500}
-                initialDelay={800}
+                interval={2.5}
+                delay={0.8}
                 playerRef={playerRef}
             />
-            {/* Cannon 5: Left, medium */}
             <SnowCannon
-                id="cannon_B3"
                 position={[-12, 1, -150]}
-                rotation={[0, 0, -Math.PI / 2]}
+                direction={{ x: 1, z: 0 }}
                 speed={11}
                 size={1.4}
-                interval={2500}
-                initialDelay={1600}
+                interval={2.5}
+                delay={1.6}
                 playerRef={playerRef}
             />
 
-            <Text position={[0, 3, -112]} fontSize={0.6} color="#b71c1c" anchorX="center">
-                SNOWBALL GAUNTLET
-            </Text>
+            {/* ===== WIND TUNNEL ===== */}
+            <WindZone minZ={-220} maxZ={-160} force={12} playerRef={playerRef} />
 
+            {/* ===== ICE SLIDE ===== */}
+            <IceSlide position={[0, 2, -225]} playerRef={playerRef} />
 
-            {/* ═══════════════════════════════════════════════════
-                PHASE 3 — WIND TUNNEL BRIDGE   Z: -155 → -220
-                No cannons. Pure precision + balance.
-                Approach (W:5) → Core (W:4) → Recovery (W:12).
-            ═══════════════════════════════════════════════════ */}
-
-            {/* Approach bridge — wider and starts 5u earlier to close Phase 2→3 gap */}
-            <Platform position={[0, 1, -159]} scale={[7, 0.5, 20]} type="static" color="#b2ebf2" isSlippery={true} />
-
-            {/* Wind Tunnel Core — WindBridge handles physics + wind drag */}
-            <WindBridge
-                id="wind_bridge_main"
-                position={[0, 1, -190]}
-                playerRef={playerRef}
-            />
-
-            {/* Exit recovery platform */}
-            <Platform position={[0, 1, -210]} scale={[12, 0.5, 8]} type="static" color="#ffffff" />
-
-            <Text position={[0, 10, -190]} fontSize={0.6} color="#0097a7" anchorX="center">
-                WIND TUNNEL
-            </Text>
-
-
-            {/* ═══════════════════════════════════════════════════
-                PHASE 4 — ICE SLIDE CHAOS   Z: -220 → -295
-                3-lane slide. Rolling snowballs. Gravity speed boost.
-                IceSlide handles its own geometry + SlideSnowballs.
-            ═══════════════════════════════════════════════════ */}
-
-            {/* Small drop-step entry — gives visual "entering the chaos" feel */}
-            <Platform position={[0, 4, -217]} scale={[14, 0.5, 6]} type="static" color="#b2ebf2" isSlippery={true} />
-
-            {/* IceSlide — 3 lanes, rotated -22.5° downward, 75 units long */}
-            <IceSlide position={[0, 2, -220]} playerRef={playerRef} />
-
-            <Text position={[0, 12, -225]} fontSize={0.6} color="#e65100" anchorX="center">
-                ICE SLIDE CHAOS
-            </Text>
-
-
-            {/* ═══════════════════════════════════════════════════
-                PHASE 5 — AVALANCHE FINALE   Z: -295 → -330
-                Wide final straight. Slippery.
-                No cannons/wind — pure sprint vs avalanche.
-            ═══════════════════════════════════════════════════ */}
-
-            {/* Final Straight — wide, slippery sprint (Moved down to align with slide exit) */}
-            <Platform position={[0, -18.5, -305]} scale={[30, 1, 75]} type="static" color="#e3f2fd" isSlippery={true} />
-
-            {/* Finish Gate (Moved down to Y: -18) */}
-            <group position={[0, -18, -338]}>
-                <Text position={[0, 9, 0]} fontSize={3} color="#ffffff"
-                    anchorX="center" outlineWidth={0.1} outlineColor="#0288d1">
+            {/* ===== FINISH GATE ===== */}
+            <group position={[0, -18, -345]}>
+                <Text position={[0, 8, 0]} fontSize={2.5} color="#ffffff" anchorX="center">
                     FINISH
                 </Text>
-                <mesh position={[0, 5, 0]} castShadow>
-                    <torusGeometry args={[6, 0.25, 16, 100]} />
-                    <meshStandardMaterial color="#00e5ff" emissive="#00e5ff" emissiveIntensity={2.5} />
-                </mesh>
-                {/* Gate posts */}
-                <mesh position={[-6, 2.5, 0]}>
-                    <cylinderGeometry args={[0.3, 0.3, 10, 8]} />
-                    <meshStandardMaterial color="#01579b" />
-                </mesh>
-                <mesh position={[6, 2.5, 0]}>
-                    <cylinderGeometry args={[0.3, 0.3, 10, 8]} />
-                    <meshStandardMaterial color="#01579b" />
+                <mesh position={[0, 4, 0]}>
+                    <torusGeometry args={[5, 0.3, 16, 100]} />
+                    <meshStandardMaterial color="#00e5ff" emissive="#00e5ff" emissiveIntensity={2} />
                 </mesh>
             </group>
 
-            <Text position={[0, -10, -310]} fontSize={1} color="#880e4f" anchorX="center">
-                AVALANCHE FINALE
-            </Text>
-
-            {/* ── Avalanche Wave (server-triggered at Z < -220) ── */}
-            <AvalancheWave
-                playerRef={playerRef}
-                onEliminate={() => { setEliminated(true); emitFell?.(); }}
-                onAvalancheEnd={() => console.log('❄️ Avalanche passed')}
-            />
-
-            {/* ── Local Player (Cryo physics for ice/slide feel) ── */}
+            {/* ===== PLAYER ===== */}
             {!hidePlayer && (
                 <PlayerCryo
                     ref={playerRef}
                     emitMove={emitMove}
                     emitFell={emitFell}
-                    emitWorldTransition={() => { }}
+                    emitAchievement={emitAchievement}
+                    emitWorldTransition={() => {}}
                     world={7}
                     startPosition={[0, 2, 0]}
+                    platforms={platforms}
                 />
             )}
-        </>
+        </group>
     );
 }
