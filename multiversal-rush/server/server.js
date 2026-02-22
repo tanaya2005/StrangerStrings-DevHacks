@@ -29,6 +29,7 @@ const allowedOrigins = [
     "http://localhost:5174",
     "http://localhost:5175",
     "https://strangerstrings-devhacks.onrender.com",
+    "https://stranger-strings-dev-hacks-bn59.vercel.app",
     process.env.CLIENT_URL,
 ].filter(Boolean);
 
