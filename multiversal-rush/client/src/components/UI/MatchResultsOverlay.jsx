@@ -53,10 +53,14 @@ export default function MatchResultsOverlay() {
     useEffect(() => {
         const onRematchAccepted = () => {
             hideMatchResults();
+            useStore.getState().setGameState("waiting");
+            useStore.getState().setCurrentWorld(0);
+            useStore.getState().setMyFinishResult(null);
+            navigate('/lobby');
         };
         socket.on('rematchAccepted', onRematchAccepted);
         return () => socket.off('rematchAccepted', onRematchAccepted);
-    }, [hideMatchResults]);
+    }, [hideMatchResults, navigate]);
 
     const handleExit = () => {
         socket.emit('leaveRoom');

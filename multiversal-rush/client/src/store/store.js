@@ -128,6 +128,15 @@ const useStore = create((set, get) => ({
     // ---- Notifications ----
     pendingRequests: 0,
     setPendingRequests: (count) => set({ pendingRequests: count }),
+
+    notifications: [],
+    addNotification: (notif) => set((s) => ({
+        notifications: [{ id: Date.now() + Math.random().toString(), time: Date.now(), ...notif }, ...s.notifications].slice(0, 50)
+    })),
+    removeNotification: (id) => set((s) => ({
+        notifications: s.notifications.filter(n => n.id !== id)
+    })),
+    clearNotifications: () => set({ notifications: [] }),
 }));
 
 export default useStore;

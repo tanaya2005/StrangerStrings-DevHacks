@@ -45,8 +45,8 @@ export default function Lobby() {
     const gameState = useStore((s) => s.gameState);
 
     // ---- Local UI state ----
-    const [inputRoom, setInputRoom] = useState("");
-    const [joined, setJoined] = useState(false);
+    const [inputRoom, setInputRoom] = useState(roomId || "");
+    const [joined, setJoined] = useState(!!roomId);
     const [error, setError] = useState("");
     const [chatInput, setChatInput] = useState("");
     const [isReady, setIsReady] = useState(false);

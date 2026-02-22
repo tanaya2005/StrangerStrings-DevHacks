@@ -75,9 +75,9 @@ export default function GlobalLayout({ children }) {
 
         // 1. Friend Request Received
         const handleFR = ({ fromUserId, fromUsername }) => {
-            // Increment using the store's raw get
             const current = useStore.getState().pendingRequests;
-            setPendingRequests(current + 1);
+            useStore.getState().setPendingRequests(current + 1);
+            useStore.getState().addNotification({ type: 'friend_request', message: `${fromUsername} sent you a friend request!` });
             if (!isGamePage) {
                 addToast("friendRequest", "Friend Request 👤", `${fromUsername} sent you a friend request!`, { fromUserId, fromUsername });
             }
@@ -85,6 +85,7 @@ export default function GlobalLayout({ children }) {
 
         // 2. Room Invite Received (via main game socket)
         const handleRoomInvite = ({ fromName, roomCode }) => {
+            useStore.getState().addNotification({ type: 'room_invite', roomCode, message: `${fromName} invited you to join room ${roomCode}` });
             if (!isGamePage) {
                 addToast("roomInvite", "Game Invite 🎮", `${fromName} invited you to join room ${roomCode}`, { roomCode });
             }
@@ -92,11 +93,13 @@ export default function GlobalLayout({ children }) {
 
         // 3. Admin Broadcast — show EVERYWHERE including in-game
         const handleServerMessage = ({ text }) => {
+            useStore.getState().addNotification({ type: 'broadcast', message: `[SYSTEM] ${text}` });
             addToast("adminBroadcast", "📢 Server Announcement", text);
         };
 
         // 4. DM notification — only when NOT on the Friends page
         const handleDM = ({ senderUsername, text }) => {
+            useStore.getState().addNotification({ type: 'dm', message: `DM from ${senderUsername}: ${text?.slice(0, 50)}` });
             if (!isFriendsPage) {
                 addToast("dm", `💬 DM from ${senderUsername}`, text?.slice(0, 80));
             }
@@ -134,8 +137,8 @@ export default function GlobalLayout({ children }) {
                             <span className="toast-icon">
                                 {toast.type === "friendRequest" ? "👤"
                                     : toast.type === "roomInvite" ? "🎮"
-                                    : toast.type === "dm" ? "💬"
-                                    : "📢"}
+                                        : toast.type === "dm" ? "💬"
+                                            : "📢"}
                             </span>
                             <strong>{toast.title}</strong>
                             <button className="toast-close" onClick={() => removeToast(toast.id)}>×</button>
