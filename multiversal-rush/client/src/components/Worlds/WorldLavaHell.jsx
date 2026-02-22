@@ -1,141 +1,111 @@
 // ============================================================
-//  components/Worlds/WorldLavaHell.jsx — World 5: Lava Hell 🔥
-//  Temple Run-style course with LEFT/RIGHT turns.
-//  ~1:30 runtime at normal speed.
-//  7 unique obstacles, max 2 jump-tile sections.
-//
-//  Layout (bird's eye):
-//    START ─── Z- ── [Fire Pillars] ── [Jump Gap 1] ──┐
-//                                           RIGHT TURN │
-//    ┌── [Lava Geysers] ── [Swinging Axes] ───────────┘
-//    │ LEFT TURN
-//    └── [Crumble Floor] ── [Jump Gap 2] ── [Fire Walls] ── [Rolling Boulder] ── PORTAL
+//  components/Worlds/WorldLavaHell.jsx — World 5: Lava Hell ?
+//  Complete Redesign: Non-linear path, dynamic obstacles, slopes.
 // ============================================================
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import PlayerCryo from '../Player/PlayerCryo';
+import useStore from '../../store/store';
+
+const DIE_DISTANCE = 1.3;
+
+function checkDeath(pos, hazardPos, emitFell, playerRef) {
+    if (!pos || !hazardPos) return;
+    const dist = Math.sqrt((pos.x - hazardPos.x) ** 2 + (pos.y - hazardPos.y) ** 2 + (pos.z - hazardPos.z) ** 2);
+    if (dist < DIE_DISTANCE) {
+        pos.set(0, 2, 0); // Reset to start
+        const vel = playerRef.current?.velocityXZ;
+        if (vel) vel.set(0, 0, 0);
+        emitFell?.();
+    }
+}
 
 // ============================================================
-//  OBSTACLE 1: FIRE PILLARS — Columns that rise/sink periodically.
-//  Player must time their run to pass between them.
+//  OBSTACLE 1: Rotating Flame Pillar
 // ============================================================
-function FirePillar({ position, phase = 0, speed = 1.5 }) {
+function RotatingFlamePillar({ position, speed = 2, emitFell, playerRef }) {
+    const groupRef = useRef();
+    const hazard1 = useRef(new THREE.Vector3());
+    const hazard2 = useRef(new THREE.Vector3());
+
+    useFrame((_, delta) => {
+        if (!groupRef.current) return;
+        groupRef.current.rotation.y += speed * delta;
+
+        if (playerRef?.current?.position) {
+            const pos = playerRef.current.position;
+            // Calculate world positions of the fire hazards
+            groupRef.current.children[1].getWorldPosition(hazard1.current);
+            groupRef.current.children[2].getWorldPosition(hazard2.current);
+
+            checkDeath(pos, hazard1.current, emitFell, playerRef);
+            checkDeath(pos, hazard2.current, emitFell, playerRef);
+        }
+    });
+
+    return (
+        <group ref={groupRef} position={position}>
+            {/* Center column */}
+            <mesh position={[0, 2.5, 0]}>
+                <boxGeometry args={[1, 5, 1]} />
+                <meshStandardMaterial color="#882200" />
+            </mesh>
+            {/* Spikes / Flames sticking out */}
+            <mesh position={[1.5, 0.5, 0]}>
+                <boxGeometry args={[3, 0.5, 0.5]} />
+                <meshStandardMaterial color="#ff4400" emissive="#ff2200" emissiveIntensity={1} />
+            </mesh>
+            <mesh position={[-1.5, 4.5, 0]}>
+                <boxGeometry args={[3, 0.5, 0.5]} />
+                <meshStandardMaterial color="#ff4400" emissive="#ff2200" emissiveIntensity={1} />
+            </mesh>
+        </group>
+    );
+}
+
+// ============================================================
+//  OBSTACLE 3: Moving Platform
+// ============================================================
+function MovingPlatform({ startPos, endPos, speed = 1, platData }) {
     const meshRef = useRef();
-    useFrame((state) => {
-        if (!meshRef.current) return;
-        const y = position[1] + Math.sin(state.clock.elapsedTime * speed + phase) * 4;
-        meshRef.current.position.y = y;
+    const t = useRef(0);
+    useFrame((_, delta) => {
+        if (!meshRef.current || !platData) return;
+        t.current += speed * delta;
+        const pingPong = (Math.sin(t.current) + 1) / 2; // 0 to 1
+
+        const x = THREE.MathUtils.lerp(startPos[0], endPos[0], pingPong);
+        const y = THREE.MathUtils.lerp(startPos[1], endPos[1], pingPong);
+        const z = THREE.MathUtils.lerp(startPos[2], endPos[2], pingPong);
+
+        meshRef.current.position.set(x, y, z);
+        platData.pos = [x, y, z]; // Dynamic AABB recalculation via reference update
     });
     return (
-        <mesh ref={meshRef} position={position}>
-            <cylinderGeometry args={[0.6, 0.6, 5, 8]} />
-            <meshStandardMaterial color="#ff3300" emissive="#ff1100" emissiveIntensity={0.6} />
+        <mesh ref={meshRef} position={startPos}>
+            <boxGeometry args={platData.size} />
+            <meshStandardMaterial color="#442200" emissive="#ff1100" emissiveIntensity={0.2} roughness={0.9} />
         </mesh>
     );
 }
 
 // ============================================================
-//  OBSTACLE 3: LAVA GEYSERS — Erupting columns of lava that
-//  shoot up periodically. Visual warning + collision.
+//  OBSTACLE 4: Crumbling Rock Tile
 // ============================================================
-function LavaGeyser({ position, interval = 3, platformsRef, id }) {
-    const meshRef = useRef();
-    const active = useRef(false);
-
-    useFrame((state) => {
-        if (!meshRef.current) return;
-        const t = state.clock.elapsedTime;
-        // Active for 1s every <interval> seconds
-        const cyclePos = t % interval;
-        active.current = cyclePos < 1.0;
-        const targetY = active.current ? position[1] + 3 : position[1] - 3;
-        meshRef.current.position.y = THREE.MathUtils.lerp(meshRef.current.position.y, targetY, 0.15);
-
-        // Update collision platform when active
-        if (platformsRef?.current?.[id]) {
-            if (active.current) {
-                platformsRef.current[id].pos = [position[0], meshRef.current.position.y, position[2]];
-                platformsRef.current[id].size = [1.5, 6, 1.5];
-            } else {
-                platformsRef.current[id].pos = [position[0], -20, position[2]];
-                platformsRef.current[id].size = [0.1, 0.1, 0.1];
-            }
-        }
-    });
-    return (
-        <group>
-            {/* Base ring (always visible) */}
-            <mesh position={position}>
-                <torusGeometry args={[0.8, 0.15, 8, 16]} />
-                <meshStandardMaterial color="#ff6600" emissive="#ff4400" emissiveIntensity={0.5} />
-            </mesh>
-            {/* Erupting column */}
-            <mesh ref={meshRef} position={position}>
-                <cylinderGeometry args={[0.5, 0.7, 5, 8]} />
-                <meshStandardMaterial
-                    color="#ff4400"
-                    emissive="#ff2200"
-                    emissiveIntensity={0.8}
-                    transparent
-                    opacity={0.7}
-                />
-            </mesh>
-        </group>
-    );
-}
-
-// ============================================================
-//  OBSTACLE 4: SWINGING AXES — Pendulum blades that sweep across
-//  the path. Player must time their pass.
-// ============================================================
-function SwingingAxe({ position, speed = 2, maxAngle = Math.PI / 2.5 }) {
-    const groupRef = useRef();
-    useFrame((state) => {
-        if (!groupRef.current) return;
-        groupRef.current.rotation.z = Math.sin(state.clock.elapsedTime * speed) * maxAngle;
-    });
-    return (
-        <group position={position}>
-            <mesh>
-                <sphereGeometry args={[0.25, 6, 6]} />
-                <meshStandardMaterial color="#555" />
-            </mesh>
-            <group ref={groupRef}>
-                {/* Shaft */}
-                <mesh position={[0, -2.5, 0]}>
-                    <boxGeometry args={[0.2, 5, 0.2]} />
-                    <meshStandardMaterial color="#888" />
-                </mesh>
-                {/* Blade */}
-                <mesh position={[0, -5.5, 0]}>
-                    <boxGeometry args={[3, 0.3, 1]} />
-                    <meshStandardMaterial color="#aaa" emissive="#ff2200" emissiveIntensity={0.3} />
-                </mesh>
-            </group>
-        </group>
-    );
-}
-
-// ============================================================
-//  OBSTACLE 5: CRUMBLE FLOOR — Tiles that shake then fall
-//  when the player steps near them.
-// ============================================================
-function CrumbleTile({ position, size, playerRef }) {
+function CrumblingTile({ position, size, platData }) {
     const meshRef = useRef();
     const phase = useRef('idle'); // idle → shaking → falling → gone
     const timer = useRef(0);
+    const myPos = useStore(s => s.myPosition);
 
     useFrame((_, delta) => {
-        if (!meshRef.current || !playerRef?.current) return;
-        const pos = playerRef.current.position;
-        if (!pos) return;
+        if (!meshRef.current || !platData) return;
 
-        const dist = Math.sqrt(
-            (pos.x - position[0]) ** 2 + (pos.z - position[2]) ** 2
-        );
+        // Distance check
+        const dist = Math.sqrt((myPos.x - position[0]) ** 2 + (myPos.z - position[2]) ** 2);
 
-        if (phase.current === 'idle' && dist < 2.5 && Math.abs(pos.y - position[1]) < 2) {
+        if (phase.current === 'idle' && dist < 2.0 && Math.abs(myPos.y - position[1]) < 2) {
             phase.current = 'shaking';
             timer.current = 0;
         }
@@ -144,7 +114,7 @@ function CrumbleTile({ position, size, playerRef }) {
             timer.current += delta;
             meshRef.current.position.x = position[0] + (Math.random() - 0.5) * 0.15;
             meshRef.current.position.z = position[2] + (Math.random() - 0.5) * 0.15;
-            if (timer.current > 0.6) {
+            if (timer.current > 0.5) { // 0.5 seconds fall request
                 phase.current = 'falling';
                 timer.current = 0;
             }
@@ -153,11 +123,15 @@ function CrumbleTile({ position, size, playerRef }) {
         if (phase.current === 'falling') {
             timer.current += delta;
             meshRef.current.position.y -= 12 * delta;
+            platData.pos = [position[0], meshRef.current.position.y, position[2]]; // Update collision
             if (timer.current > 2) phase.current = 'gone';
         }
     });
 
-    if (phase.current === 'gone') return null;
+    if (phase.current === 'gone') {
+        if (platData) platData.pos = [0, -999, 0]; // Remove collision
+        return null;
+    }
 
     return (
         <mesh ref={meshRef} position={position}>
@@ -168,56 +142,66 @@ function CrumbleTile({ position, size, playerRef }) {
 }
 
 // ============================================================
-//  OBSTACLE 6: FIRE WALLS — Horizontal walls of fire that move
-//  up and down. Player must jump or crouch to pass.
+//  OBSTACLE 5: Swinging Fire Hammer
 // ============================================================
-function FireWall({ position, height = 1.5, speed = 1.5 }) {
-    const meshRef = useRef();
+function SwingingHammer({ position, maxAngle = Math.PI / 2, speed = 2, emitFell, playerRef }) {
+    const groupRef = useRef();
+    const hazardPos = useRef(new THREE.Vector3());
+
     useFrame((state) => {
-        if (!meshRef.current) return;
-        const offset = Math.sin(state.clock.elapsedTime * speed) * 2;
-        meshRef.current.position.y = position[1] + offset;
+        if (groupRef.current) {
+            groupRef.current.rotation.z = Math.sin(state.clock.elapsedTime * speed) * maxAngle;
+
+            if (playerRef?.current?.position && groupRef.current.children[1]?.children[1]) {
+                const pos = playerRef.current.position;
+                // Get world pos of the blade
+                groupRef.current.children[1].children[1].getWorldPosition(hazardPos.current);
+                checkDeath(pos, hazardPos.current, emitFell, playerRef);
+            }
+        }
     });
     return (
-        <mesh ref={meshRef} position={position}>
-            <boxGeometry args={[8, height, 0.3]} />
-            <meshStandardMaterial
-                color="#ff4400"
-                emissive="#ff2200"
-                emissiveIntensity={1.2}
-                transparent
-                opacity={0.8}
-            />
-        </mesh>
+        <group position={position}>
+            <mesh>
+                <boxGeometry args={[0.5, 1, 0.5]} />
+                <meshStandardMaterial color="#333" />
+            </mesh>
+            <group ref={groupRef}>
+                <mesh position={[0, -3, 0]}>
+                    <boxGeometry args={[0.2, 6, 0.2]} />
+                    <meshStandardMaterial color="#888" />
+                </mesh>
+                <mesh position={[0, -6, 0]}>
+                    <boxGeometry args={[3, 1.5, 1.5]} />
+                    <meshStandardMaterial color="#ff3300" emissive="#ff1100" emissiveIntensity={0.8} />
+                </mesh>
+            </group>
+        </group>
     );
 }
 
 // ============================================================
-//  OBSTACLE 7: ROLLING BOULDER — A sphere that rolls toward
-//  the player along the final corridor.
+//  OBSTACLE 7: Moving Fire Walls
 // ============================================================
-function RollingBoulder({ startPos, endPos, speed = 6 }) {
+function MovingFireWall({ position, ht = 2, speed = 1.5, offset = 0, emitFell, playerRef }) {
     const meshRef = useRef();
-    const dir = useRef(1);
+    const hazardPos = useRef(new THREE.Vector3());
 
-    useFrame((_, delta) => {
+    useFrame((state) => {
         if (!meshRef.current) return;
-        meshRef.current.position.z += speed * delta * dir.current;
-        meshRef.current.rotation.x += speed * delta * 0.5 * dir.current;
+        const offsetVal = Math.sin(state.clock.elapsedTime * speed + offset) * 2;
+        meshRef.current.position.x = position[0] + offsetVal;
 
-        if (meshRef.current.position.z > endPos[2]) dir.current = -1;
-        if (meshRef.current.position.z < startPos[2]) dir.current = 1;
+        if (playerRef?.current) {
+            meshRef.current.getWorldPosition(hazardPos.current);
+            checkDeath(playerRef.current.position, hazardPos.current, emitFell, playerRef);
+        }
     });
 
     return (
-        <mesh ref={meshRef} position={startPos}>
-            <sphereGeometry args={[1.2, 12, 12]} />
-            <meshStandardMaterial
-                color="#4a2200"
-                emissive="#331100"
-                emissiveIntensity={0.3}
-                roughness={0.9}
-            />
+        <mesh ref={meshRef} position={[position[0], position[1], position[2]]}>
+            <boxGeometry args={[1, ht, 1]} />
+            <meshStandardMaterial color="#ff4400" emissive="#ff2200" emissiveIntensity={1.5} opacity={0.8} transparent />
         </mesh>
     );
 }
@@ -225,108 +209,84 @@ function RollingBoulder({ startPos, endPos, speed = 6 }) {
 // ============================================================
 //  MAIN WORLD
 // ============================================================
-export default function WorldLavaHell({ emitMove, emitFinished, emitFell, emitAchievement, emitWorldTransition }) {
+export default function WorldLavaHell({ emitMove, emitFinished, emitFell, emitAchievement, emitWorldTransition, emitEliminated }) {
     const playerRef = useRef();
     const portalRef = useRef();
-    const geyserPlatsRef = useRef({});
     const finishedRef = useRef(false);
 
-    // ================================================================
-    //  COURSE LAYOUT — Temple Run style with 2 turns
-    //
-    //  Leg 1: Z = 0 → Z = -40  (straight forward)
-    //  RIGHT TURN at Z = -40
-    //  Leg 2: X = 0 → X = 40   (run right)
-    //  LEFT TURN at X = 40
-    //  Leg 3: Z = -40 → Z = -100  (forward again)
-    // ================================================================
+    // Dynamic platforms objects that we will mutate for AABB recalculation
+    const dynPlats = useMemo(() => ({
+        moving1: { pos: [-30, 4.5, -61], size: [4, 1, 4] },
+        crumble1: { pos: [-30, 4.5, -52], size: [3, 1, 3] },
+        crumble2: { pos: [-30, 4.5, -56], size: [3, 1, 3] },
+        // Extended Map Dynamic Platforms
+        moving2: { pos: [-15, 0, -104], size: [4, 1, 4] },
+        crumble3: { pos: [-5, 0, -104], size: [3, 1, 3] },
+    }), []);
 
-    const staticPlatforms = useMemo(() => [
-        // ======== LEG 1: FORWARD (Z-) ========
-        // Spawn safe zone
-        { pos: [0, 0, 0], size: [8, 1, 8] },
-        // Run path
-        { pos: [0, 0, -6], size: [6, 1, 4] },
-        // Fire pillar dodge zone
-        { pos: [0, 0, -12], size: [8, 1, 6] },
-        { pos: [0, 0, -18], size: [8, 1, 6] },
-        // Jump gap 1 — two stepping tiles
-        { pos: [-2, 0, -24], size: [3, 1, 3] },
-        { pos: [2, 0.5, -28], size: [3, 1, 3] },
-        // Landing + approach to turn
-        { pos: [0, 0, -33], size: [6, 1, 6] },
-        // CORNER TURN PLATFORM (right turn)
-        { pos: [0, 0, -40], size: [10, 1, 10] },
+    // Course Layout generated once
+    const platformsConfig = useMemo(() => {
+        const arr = [
+            // Safe start
+            { pos: [0, 0, 0], size: [8, 1, 8] },
+            // Straight Road
+            { pos: [0, 0, -11], size: [6, 1, 14] },
+            // Gap before wall
+            { pos: [0, 0, -22], size: [6, 1, 4] },
+            // Left Turn (90 deg) Corner
+            { pos: [0, 0, -32], size: [10, 1, 10] },
+            // Narrow lava bridge
+            { pos: [-15, 0, -32], size: [20, 1, 3] },
+            // Right Turn Corner
+            { pos: [-30, 0, -32], size: [10, 1, 10] },
+            // Slope Up
+            { pos: [-30, 2.5, -42], size: [6, 1, 14], isSlide: true, rot: [0.18, 0, 0] },
+            // Gap jump landing
+            { pos: [-30, 4.5, -67], size: [6, 1, 6] },
+            // Slope Down
+            { pos: [-30, 2.5, -78], size: [6, 1, 16], isSlide: true, rot: [-0.18, 0, 0] },
+            // Final elevated bridge 1
+            { pos: [-30, 0, -92], size: [8, 1, 12] },
+            // Turn Left Corner
+            { pos: [-30, 0, -104], size: [10, 1, 10] },
+            // Bridge over X back to 0
+            { pos: [-24, 0, -104], size: [2, 1, 6] }, // start jumper
+            // moving2 & crumble3 take over middle gap
+            // Turn Right Corner
+            { pos: [0, 0, -104], size: [10, 1, 10] },
+            // Final Gauntlet
+            { pos: [0, 0, -116], size: [6, 1, 14] },
+            { pos: [0, 0, -132], size: [6, 1, 18] },
+            // Final Portal Platform
+            { pos: [0, 0, -148], size: [12, 1, 12] },
+        ];
+        Object.values(dynPlats).forEach(p => arr.push(p));
+        return arr;
+    }, [dynPlats]);
 
-        // ======== LEG 2: RIGHT (X+) ========
-        // Geyser corridor
-        { pos: [6, 0, -40], size: [4, 1, 6] },
-        { pos: [12, 0, -40], size: [4, 1, 6] },
-        { pos: [18, 0, -40], size: [4, 1, 6] },
-        { pos: [24, 0, -40], size: [4, 1, 6] },
-        // Axe gauntlet
-        { pos: [30, 0, -40], size: [6, 1, 8] },
-        { pos: [36, 0, -40], size: [6, 1, 8] },
-        // CORNER TURN PLATFORM (left turn)
-        { pos: [40, 0, -40], size: [10, 1, 10] },
-
-        // ======== LEG 3: FORWARD AGAIN (Z-) ========
-        // Crumble floor zone (tiles handled separately — these are side walls)
-        { pos: [40, 0, -48], size: [6, 1, 6] },
-        // Jump gap 2 — two tiles
-        { pos: [38, 0.5, -55], size: [3, 1, 3] },
-        { pos: [42, 1, -59], size: [3, 1, 3] },
-        // Fire wall dodge corridor
-        { pos: [40, 0, -65], size: [8, 1, 6] },
-        { pos: [40, 0, -72], size: [8, 1, 6] },
-        { pos: [40, 0, -78], size: [8, 1, 6] },
-        // Boulder corridor
-        { pos: [40, 0, -85], size: [6, 1, 10] },
-        { pos: [40, 0, -92], size: [6, 1, 6] },
-        // FINAL PLATFORM
-        { pos: [40, 0, -100], size: [12, 1, 12] },
-    ], []);
-
-    // Crumble tiles (Obstacle 5)
-    const crumbleTiles = useMemo(() => [
-        { pos: [38, 0, -48], size: [2.5, 0.8, 2.5] },
-        { pos: [40, 0, -48], size: [2.5, 0.8, 2.5] },
-        { pos: [42, 0, -48], size: [2.5, 0.8, 2.5] },
-        { pos: [39, 0, -51], size: [2.5, 0.8, 2.5] },
-        { pos: [41, 0, -51], size: [2.5, 0.8, 2.5] },
-    ], []);
-
-    // Lava Y for death check
     const LAVA_Y = -6;
 
-    // Geyser init
-    useMemo(() => {
-        ['g1', 'g2', 'g3', 'g4'].forEach(id => {
-            geyserPlatsRef.current[id] = { pos: [0, -20, 0], size: [0.1, 0.1, 0.1] };
-        });
-    }, []);
-
-    // Turn arrow visual
-    function TurnArrow({ position, rotation, color = "#ff6600" }) {
-        return (
-            <group position={position} rotation={rotation}>
-                <mesh>
-                    <coneGeometry args={[1, 2, 4]} />
-                    <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
-                </mesh>
-            </group>
-        );
-    }
-
-    // Side walls along corridors to guide the player
-    function SideWall({ position, size }) {
+    // Side decors (rocky road / lava visible)
+    function SideDecor({ position, size, isLava }) {
         return (
             <mesh position={position}>
                 <boxGeometry args={size} />
-                <meshStandardMaterial color="#2a0800" emissive="#ff1100" emissiveIntensity={0.05} />
+                <meshStandardMaterial
+                    color={isLava ? "#ff2200" : "#2a1100"}
+                    emissive={isLava ? "#ff4400" : "#000000"}
+                    emissiveIntensity={isLava ? 0.8 : 0}
+                    roughness={0.9}
+                />
             </mesh>
         );
     }
+
+    const { players, setMyPosition } = useStore(s => ({
+        players: s.players,
+        setMyPosition: s.setMyPosition
+    }));
+
+    const checkpointRef = useRef([0, 2, 0]);
 
     useFrame((_, delta) => {
         if (portalRef.current) portalRef.current.rotation.y += delta * 1.5;
@@ -335,136 +295,131 @@ export default function WorldLavaHell({ emitMove, emitFinished, emitFell, emitAc
             const pos = playerRef.current.position;
             if (!pos) return;
 
-            // Lava death
+            // Manual lava check + respawn without reloading
             if (pos.y < LAVA_Y) {
-                pos.set(0, 2, 0);
+                pos.set(...checkpointRef.current); // Reset to checkpoint
+                const vel = playerRef.current?.velocityXZ;
+                if (vel) vel.set(0, 0, 0);
                 emitFell?.();
             }
 
-            // Finish portal check
-            if (!finishedRef.current && pos.z < -96 && pos.z > -104 && Math.abs(pos.x - 40) < 4) {
+            // Checkpoints updates
+            if (pos.z < -25 && pos.z > -35 && pos.x > -5 && pos.x < 5) checkpointRef.current = [0, 2, -32]; // After Wall/Before bridge
+            if (pos.z < -60 && pos.z > -72 && pos.x > -35 && pos.x < -25) checkpointRef.current = [-30, 6, -67]; // After Slope jump
+            if (pos.z < -85 && pos.z > -95 && pos.x > -35 && pos.x < -25) checkpointRef.current = [-30, 2, -92]; // Before final bridge 1
+            if (pos.z < -99 && pos.z > -109 && pos.x > -5 && pos.x < 5) checkpointRef.current = [0, 2, -104]; // After X axis cross
+
+            // Win logical verification
+            if (!finishedRef.current && pos.z < -144 && pos.z > -152 && Math.abs(pos.x - 0) < 4) {
                 finishedRef.current = true;
                 emitFinished?.();
             }
         }
+
+        // Dynamic win logic from store
+        const activePlayers = Object.values(useStore.getState().players);
+        const total = activePlayers.length || 1;
+        const reqFinishers = total <= 3 ? (total === 1 ? 1 : 2) : 3;
+        const finishers = activePlayers.filter(p => p.finished).length;
+
+        if (finishers >= reqFinishers && !finishedRef.current) {
+            // End match reached, freeze remaining by eliminating
+            finishedRef.current = true;
+            if (emitEliminated) emitEliminated();
+        }
     });
 
     return (
-        <>
-            {/* ---- Environment ---- */}
-            <color attach="background" args={["#1a0000"]} />
-            <fog attach="fog" args={["#220000", 20, 100]} />
+        <group>
+            {/* ---- Aesthetic & Atmosphere ---- */}
+            <color attach="background" args={["#110000"]} />
+            <fog attach="fog" args={["#330500", 15, 80]} />
+            <ambientLight intensity={0.4} color="#ff3300" />
+            <directionalLight position={[10, 20, 10]} intensity={0.8} color="#ff8800" />
+            <pointLight position={[0, 5, -30]} color="#ff4400" intensity={2} distance={30} />
+            <pointLight position={[-30, 5, -60]} color="#ff2200" intensity={2} distance={40} />
+            <pointLight position={[0, 5, -120]} color="#ff3300" intensity={2} distance={40} />
 
-            <ambientLight intensity={0.35} color="#ff6644" />
-            <directionalLight position={[20, 30, 10]} intensity={0.9} color="#ffaa44" />
-            <pointLight position={[0, 5, -20]} color="#ff3300" intensity={1} distance={40} />
-            <pointLight position={[20, 5, -40]} color="#ff6600" intensity={1} distance={40} />
-            <pointLight position={[40, 5, -80]} color="#ff4400" intensity={1} distance={40} />
-
-            {/* ---- Lava Floor (static, below everything) ---- */}
-            <mesh position={[20, LAVA_Y, -50]} rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[200, 200]} />
-                <meshStandardMaterial
-                    color="#ff2200"
-                    emissive="#ff4400"
-                    emissiveIntensity={0.8}
-                    transparent
-                    opacity={0.75}
-                />
+            {/* ---- Lava Floor ---- */}
+            <mesh position={[-15, LAVA_Y + 0.5, -70]} rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[200, 250]} />
+                <meshStandardMaterial color="#ff2200" emissive="#ff4400" emissiveIntensity={0.8} transparent opacity={0.85} />
             </mesh>
 
-            {/* ---- Volcanic backdrop ---- */}
-            {[0, 1, 2, 3].map(i => (
-                <mesh key={`volcano-${i}`} position={[(i - 1.5) * 40, -15, -110]}>
-                    <coneGeometry args={[15 + i * 4, 50, 5]} />
-                    <meshStandardMaterial color="#2a0500" emissive="#ff1100" emissiveIntensity={0.1} />
-                </mesh>
-            ))}
+            {/* ---- Static Path Visualization ---- */}
+            {platformsConfig.map((p, i) => {
+                if (Object.values(dynPlats).includes(p)) return null; // Rendered via dynamic components
+                return (
+                    <mesh key={`plat-${i}`} position={p.pos} rotation={p.rot || [0, 0, 0]}>
+                        <boxGeometry args={p.size} />
+                        <meshStandardMaterial color="#331100" />
+                    </mesh>
+                );
+            })}
 
-            {/* ---- Static Platforms ---- */}
-            {staticPlatforms.map((p, i) => (
-                <mesh key={`plat-${i}`} position={p.pos}>
-                    <boxGeometry args={p.size} />
-                    <meshStandardMaterial
-                        color="#3a1500"
-                        emissive="#ff2200"
-                        emissiveIntensity={0.06}
-                        roughness={0.9}
-                    />
-                </mesh>
-            ))}
+            {/* Visual Road Borders - Rocky vs Lava (Example placement) */}
+            <SideDecor position={[4, 0, -10]} size={[2, 1, 20]} isLava={false} />
+            <SideDecor position={[-4, -0.5, -10]} size={[2, 0.5, 20]} isLava={true} />
+            <SideDecor position={[4, 0, -125]} size={[2, 1, 20]} isLava={false} />
 
-            {/* ---- SIDE WALLS (guide player through turns) ---- */}
-            {/* Leg 1 walls */}
-            <SideWall position={[-4, 1.5, -20]} size={[0.5, 3, 40]} />
-            <SideWall position={[4, 1.5, -20]} size={[0.5, 3, 40]} />
-            {/* Leg 2 walls */}
-            <SideWall position={[20, 1.5, -37]} size={[40, 3, 0.5]} />
-            <SideWall position={[20, 1.5, -43]} size={[40, 3, 0.5]} />
-            {/* Leg 3 walls */}
-            <SideWall position={[37, 1.5, -75]} size={[0.5, 3, 60]} />
-            <SideWall position={[43, 1.5, -75]} size={[0.5, 3, 60]} />
+            {/* Checkpoint Indicators (Visual only) */}
+            <mesh position={[0, 0.6, -32]}><cylinderGeometry args={[1, 1, 0.2, 16]} /><meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.5} transparent opacity={0.3} /></mesh>
+            <mesh position={[-30, 5.1, -67]}><cylinderGeometry args={[1, 1, 0.2, 16]} /><meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.5} transparent opacity={0.3} /></mesh>
+            <mesh position={[-30, 0.6, -92]}><cylinderGeometry args={[1, 1, 0.2, 16]} /><meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.5} transparent opacity={0.3} /></mesh>
+            <mesh position={[0, 0.6, -104]}><cylinderGeometry args={[1, 1, 0.2, 16]} /><meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={0.5} transparent opacity={0.3} /></mesh>
 
-            {/* ---- TURN ARROWS ---- */}
-            <TurnArrow position={[3, 3, -40]} rotation={[0, -Math.PI / 2, 0]} />
-            <TurnArrow position={[40, 3, -37]} rotation={[0, Math.PI, 0]} />
+            {/* =====================================
+                DYNAMIC OBSTACLES 
+               ===================================== */}
 
-            {/* ============ OBSTACLE 1: FIRE PILLARS (Leg 1, z=-12 to -18) ============ */}
-            <FirePillar position={[-2, 0, -12]} phase={0} speed={1.8} />
-            <FirePillar position={[2, 0, -14]} phase={1.5} speed={1.5} />
-            <FirePillar position={[-1, 0, -17]} phase={3} speed={2} />
-            <FirePillar position={[1.5, 0, -19]} phase={0.8} speed={1.3} />
+            {/* Moving Fire Walls (Horizontal dodge) on the straight path (formerly RisingLavaWall) */}
+            <MovingFireWall position={[0, 1.5, -20]} ht={2} speed={3} offset={0} emitFell={emitFell} playerRef={playerRef} />
+            <MovingFireWall position={[0, 1.5, -24]} ht={2} speed={3} offset={Math.PI} emitFell={emitFell} playerRef={playerRef} />
 
-            {/* ============ OBSTACLE 2: JUMP GAP 1 (z=-24, -28) ============ */}
-            {/* (Handled by the 2 small static platforms above) */}
+            {/* 1. Rotating Flame Pillar inside Left Turn Corner */}
+            <RotatingFlamePillar position={[0, 0.5, -32]} speed={2.5} playerRef={playerRef} emitFell={emitFell} />
 
-            {/* ============ OBSTACLE 3: LAVA GEYSERS (Leg 2, along X) ============ */}
-            <LavaGeyser position={[8, 0.5, -40]} interval={2.5} platformsRef={geyserPlatsRef} id="g1" />
-            <LavaGeyser position={[14, 0.5, -40]} interval={3.5} platformsRef={geyserPlatsRef} id="g2" />
-            <LavaGeyser position={[20, 0.5, -40]} interval={2.0} platformsRef={geyserPlatsRef} id="g3" />
-            <LavaGeyser position={[26, 0.5, -40]} interval={4.0} platformsRef={geyserPlatsRef} id="g4" />
+            {/* 2. Narrow Lava Bridge (X from -5 to -25, already covered by platform array size 20) 
+                   adding small fire hazard chunks for detail */}
+            <SideDecor position={[-15, 0.5, -31]} size={[8, 0.2, 0.2]} isLava={true} />
 
-            {/* ============ OBSTACLE 4: SWINGING AXES (Leg 2, x=30-36) ============ */}
-            <SwingingAxe position={[30, 8, -40]} speed={2} maxAngle={Math.PI / 2.5} />
-            <SwingingAxe position={[34, 8, -40]} speed={2.5} maxAngle={Math.PI / 3} />
-            <SwingingAxe position={[37, 8, -40]} speed={1.8} maxAngle={Math.PI / 2} />
+            {/* 6. Lava Gap Jump starts around -49 to -65 */}
+            {/* 4. Crumbling rock tiles before the moving platform */}
+            <CrumblingTile position={[-30, 4.5, -52]} size={dynPlats.crumble1.size} platData={dynPlats.crumble1} />
+            <CrumblingTile position={[-30, 4.5, -56]} size={dynPlats.crumble2.size} platData={dynPlats.crumble2} />
 
-            {/* ============ OBSTACLE 5: CRUMBLE FLOOR (Leg 3, z=-48 to -51) ============ */}
-            {crumbleTiles.map((tile, i) => (
-                <CrumbleTile
-                    key={`crumble-${i}`}
-                    position={tile.pos}
-                    size={tile.size}
-                    playerRef={playerRef}
-                />
-            ))}
+            {/* 3. Moving Platform over Lava */}
+            <MovingPlatform startPos={[-25, 4.5, -61]} endPos={[-35, 4.5, -61]} speed={1.5} platData={dynPlats.moving1} />
 
-            {/* ============ OBSTACLE 6: FIRE WALLS (Leg 3, z=-65 to -78) ============ */}
-            <FireWall position={[40, 2, -65]} height={1.2} speed={1.5} />
-            <FireWall position={[40, 3.5, -70]} height={1.2} speed={1.8} />
-            <FireWall position={[40, 1.5, -76]} height={1.5} speed={1.2} />
+            {/* 5. Swinging Fire Hammer on Elevated Final Bridge */}
+            {/* Lowered to Y=7 so the 6-unit long hammer hits Y=1 (player height) */}
+            <SwingingHammer position={[-30, 7, -90]} speed={2} playerRef={playerRef} emitFell={emitFell} />
+            <SwingingHammer position={[-30, 7, -94]} speed={2.5} playerRef={playerRef} emitFell={emitFell} />
 
-            {/* ============ OBSTACLE 7: ROLLING BOULDER (Leg 3, z=-82 to -95) ============ */}
-            <RollingBoulder startPos={[40, 1.5, -85]} endPos={[40, 1.5, -92]} speed={8} />
+            {/* --- NEW EXTENSION OBSTACLES --- */}
 
-            {/* ============ JUMP GAP 2 (z=-55, -59) ============ */}
-            {/* (Handled by the 2 small static platforms above) */}
+            {/* Moving Platform crossing X axis after Left Turn Corner */}
+            <MovingPlatform startPos={[-22, 0, -104]} endPos={[-10, 0, -104]} speed={2} platData={dynPlats.moving2} />
+            <CrumblingTile position={[-5, 0, -104]} size={dynPlats.crumble3.size} platData={dynPlats.crumble3} />
+
+            <RotatingFlamePillar position={[0, 0.5, -104]} speed={-3.5} playerRef={playerRef} emitFell={emitFell} />
+
+            <MovingFireWall position={[0, 1.5, -114]} ht={2} speed={2} offset={0} emitFell={emitFell} playerRef={playerRef} />
+            <MovingFireWall position={[0, 1.5, -118]} ht={2} speed={2} offset={Math.PI} emitFell={emitFell} playerRef={playerRef} />
+
+            <SwingingHammer position={[0, 7, -128]} speed={2.5} playerRef={playerRef} emitFell={emitFell} />
+            <SwingingHammer position={[0, 7, -132]} speed={3} playerRef={playerRef} emitFell={emitFell} />
+            <SwingingHammer position={[0, 7, -136]} speed={2.5} maxAngle={Math.PI / 1.5} playerRef={playerRef} emitFell={emitFell} />
 
             {/* ---- FINAL PORTAL ---- */}
-            <group position={[40, 3.5, -100]}>
+            <group position={[0, 2.5, -148]}>
                 <mesh ref={portalRef}>
-                    <torusGeometry args={[2, 0.15, 16, 60]} />
+                    <boxGeometry args={[4, 0.5, 4]} />
                     <meshStandardMaterial color="#ff4400" emissive="#ff2200" emissiveIntensity={2} />
                 </mesh>
-                <mesh>
-                    <circleGeometry args={[1.85, 32]} />
-                    <meshStandardMaterial
-                        color="#ff6600"
-                        emissive="#ff4400"
-                        emissiveIntensity={0.8}
-                        transparent
-                        opacity={0.4}
-                    />
+                <mesh position={[0, 3, 0]}>
+                    <boxGeometry args={[3, 5, 0.2]} />
+                    <meshStandardMaterial color="#ff8800" emissive="#ff6600" emissiveIntensity={1} opacity={0.6} transparent />
                 </mesh>
             </group>
 
@@ -474,11 +429,11 @@ export default function WorldLavaHell({ emitMove, emitFinished, emitFell, emitAc
                 emitMove={emitMove}
                 emitFell={emitFell}
                 emitAchievement={emitAchievement}
-                emitWorldTransition={() => { }}
+                emitWorldTransition={emitWorldTransition}
                 world={5}
                 startPosition={[0, 2, 0]}
-                platforms={staticPlatforms}
+                platforms={platformsConfig}
             />
-        </>
+        </group>
     );
 }
