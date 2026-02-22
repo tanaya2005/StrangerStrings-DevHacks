@@ -85,6 +85,7 @@ function createRoom(roomId) {
         finishedOrder: [],
         chatMessages: [],
         selectedMap: null,
+        lastMap: null,          // track last played map to avoid repeat
         windDirection: 1,
         windInterval: null,
         avalancheActive: false,
@@ -140,7 +141,7 @@ function startCannonFiring(io, roomId, room) {
                     timestamp: Date.now()
                 });
             };
-            
+
             fire(); // Fire immediately after delay
             const interval = setInterval(fire, cannon.interval);
             room.cannonIntervals.push(interval);
@@ -799,9 +800,11 @@ export function registerGameSocket(io) {
                 room.gameState = "lobby";  // 3D lobby phase
 
                 // Pick map NOW so we can show it during countdown
+                // Random map — never same as last played
                 const MAPS = ["frozenfrenzy", "lavahell", "honeycomb", "neonparadox", "cryovoid"];
-                // TESTING: Force frozen map
-                room.selectedMap = "frozenfrenzy"; // MAPS[Math.floor(Math.random() * MAPS.length)];
+                const availableMaps = MAPS.filter(m => m !== room.lastMap);
+                room.selectedMap = availableMaps[Math.floor(Math.random() * availableMaps.length)];
+                room.lastMap = room.selectedMap;
 
                 console.log(`[Room ${roomId}] All ready – entering 3D lobby. Map pre-selected: ${room.selectedMap}`);
 
@@ -850,7 +853,7 @@ export function registerGameSocket(io) {
 
                         // Start wind for FrozenFrenzy / Wind Tunnel
                         startWindBroadcast(io, roomId, room);
-                        
+
                         // Start snow cannons for FrozenFrenzy
                         if (room.selectedMap === 'frozenfrenzy') {
                             startCannonFiring(io, roomId, room);
