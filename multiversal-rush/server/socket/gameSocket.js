@@ -568,6 +568,62 @@ export function registerGameSocket(io) {
         });
 
         // --------------------------------------------------------
+        //  leaveRoom  ← NEW
+        //  Client emits this when they click "Back" in the Lobby.
+        //  Does exactly what disconnect does for that room, but
+        //  keeps the socket alive so the player can rejoin later.
+        // --------------------------------------------------------
+        socket.on("leaveRoom", () => {
+            const roomId = socket.data.roomId;
+            if (!roomId || !rooms[roomId]) return;
+
+            const room = rooms[roomId];
+            const player = room.players[socket.id];
+
+            if (player) {
+                console.log(`[Room ${roomId}] ${player.name} left voluntarily`);
+
+                // Remove from the Socket.io room (stops receiving broadcasts)
+                socket.leave(roomId);
+
+                // Notify remaining players
+                delete room.players[socket.id];
+                io.to(roomId).emit("playerLeft", {
+                    playerId: socket.id,
+                    playerName: player.name,
+                    players: getPlayerList(room),
+                });
+            }
+
+            // Clear roomId from socket data so accidental re-triggers don't fire
+            socket.data.roomId = null;
+
+            // If countdown/lobby was running and not enough players, cancel it
+            if ((room.gameState === "lobby" || room.gameState === "countdown") && playerCount(room) < 1) {
+                room.gameState = "waiting";
+                if (room.lobbyInterval) { clearInterval(room.lobbyInterval); room.lobbyInterval = null; }
+                Object.values(room.players).forEach((p) => (p.ready = false));
+                io.to(roomId).emit("countdownCancelled", { reason: "Not enough players" });
+            }
+
+            // If the remaining players are no longer all-ready, reset ready states
+            if (room.gameState === "waiting" && playerCount(room) > 0) {
+                Object.values(room.players).forEach((p) => (p.ready = false));
+                io.to(roomId).emit("playersUpdated", { players: getPlayerList(room) });
+            }
+
+            // Clean up empty rooms
+            if (playerCount(room) === 0) {
+                if (room.windInterval) clearInterval(room.windInterval);
+                if (room.avalancheInterval) clearInterval(room.avalancheInterval);
+                if (room.lobbyInterval) clearInterval(room.lobbyInterval);
+                if (room.rankInterval) clearInterval(room.rankInterval);
+                delete rooms[roomId];
+                console.log(`[Room ${roomId}] Deleted (empty after voluntary leave)`);
+            }
+        });
+
+        // --------------------------------------------------------
         //  playerReady
         //  Client sends: {} (no payload needed)
         //  Toggles the player's ready state.
@@ -634,11 +690,6 @@ export function registerGameSocket(io) {
                             players: Object.values(room.players).map(p => ({ socketId: p.id, username: p.name })),
                         }).catch(err => console.error("[Game.create]", err));
 
-                        const availableMaps = ["frozenfrenzy", "lavahell", "honeycomb", "neonparadox", "cryovoid"];
-                        const randomMap = availableMaps[Math.floor(Math.random() * availableMaps.length)];
-                        room.selectedMap = randomMap;
-
-                        console.log(`[Room ${roomId}] 🎲 Random map selected: ${randomMap}`);
 
                         io.to(roomId).emit("startGame", {
                             map: room.selectedMap,

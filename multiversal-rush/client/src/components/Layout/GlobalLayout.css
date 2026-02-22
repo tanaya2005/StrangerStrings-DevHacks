@@ -68,6 +68,10 @@
     background: rgba(20, 14, 5, 0.97);
 }
 
+.toast-dm {
+    border-color: rgba(0, 230, 180, 0.45);
+}
+
 /* ── Toast Header ── */
 .toast-header {
     display: flex;

@@ -68,20 +68,25 @@ export default function GlobalLayout({ children }) {
 
     // ---- Socket event listeners ----
     useEffect(() => {
-        const fs = getFriendSocket?.();
+        // friendSocket may not be ready at first render — retry once after a short delay
+        let fs = getFriendSocket?.();
+
+        const isFriendsPage = location.pathname === "/friends";
 
         // 1. Friend Request Received
         const handleFR = ({ fromUserId, fromUsername }) => {
-            setPendingRequests(prev => prev + 1);
+            // Increment using the store's raw get
+            const current = useStore.getState().pendingRequests;
+            setPendingRequests(current + 1);
             if (!isGamePage) {
-                addToast("friendRequest", "Friend Request", `${fromUsername} sent you a friend request!`, { fromUserId, fromUsername });
+                addToast("friendRequest", "Friend Request 👤", `${fromUsername} sent you a friend request!`, { fromUserId, fromUsername });
             }
         };
 
-        // 2. Room Invite Received
+        // 2. Room Invite Received (via main game socket)
         const handleRoomInvite = ({ fromName, roomCode }) => {
             if (!isGamePage) {
-                addToast("roomInvite", "Game Invite", `${fromName} invited you to join room ${roomCode}`, { roomCode });
+                addToast("roomInvite", "Game Invite 🎮", `${fromName} invited you to join room ${roomCode}`, { roomCode });
             }
         };
 
@@ -90,16 +95,29 @@ export default function GlobalLayout({ children }) {
             addToast("adminBroadcast", "📢 Server Announcement", text);
         };
 
+        // 4. DM notification — only when NOT on the Friends page
+        const handleDM = ({ senderUsername, text }) => {
+            if (!isFriendsPage) {
+                addToast("dm", `💬 DM from ${senderUsername}`, text?.slice(0, 80));
+            }
+        };
+
         socket.on("roomInvite", handleRoomInvite);
         socket.on("serverMessage", handleServerMessage);
-        if (fs) fs.on("friend:requestReceived", handleFR);
+        if (fs) {
+            fs.on("friend:requestReceived", handleFR);
+            fs.on("dm:message", handleDM);
+        }
 
         return () => {
             socket.off("roomInvite", handleRoomInvite);
             socket.off("serverMessage", handleServerMessage);
-            if (fs) fs.off("friend:requestReceived", handleFR);
+            if (fs) {
+                fs.off("friend:requestReceived", handleFR);
+                fs.off("dm:message", handleDM);
+            }
         };
-    }, [isGamePage, addToast, setPendingRequests]);
+    }, [isGamePage, location.pathname, addToast, setPendingRequests]);
 
     return (
         <div className={`global-container${isGamePage ? " is-game" : ""}`}>
@@ -116,7 +134,8 @@ export default function GlobalLayout({ children }) {
                             <span className="toast-icon">
                                 {toast.type === "friendRequest" ? "👤"
                                     : toast.type === "roomInvite" ? "🎮"
-                                        : "📢"}
+                                    : toast.type === "dm" ? "💬"
+                                    : "📢"}
                             </span>
                             <strong>{toast.title}</strong>
                             <button className="toast-close" onClick={() => removeToast(toast.id)}>×</button>

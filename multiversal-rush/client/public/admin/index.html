@@ -853,8 +853,11 @@
 
     <script>
         // ── Config ──────────────────────────────────────────────────
-        const API = 'https://strangerstrings-devhacks.onrender.com/api/admin';
-        // Change ^ to http://localhost:5000/api/admin for local dev
+        // Auto-detect: use localhost when running locally, production otherwise
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API = isLocal
+            ? 'http://localhost:5000/api/admin'
+            : 'https://strangerstrings-devhacks.onrender.com/api/admin';
 
         let token = null;
         let refreshInterval = null;

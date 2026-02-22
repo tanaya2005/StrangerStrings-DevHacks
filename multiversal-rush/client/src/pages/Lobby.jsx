@@ -204,6 +204,21 @@ export default function Lobby() {
         };
     }, []);
 
+    // ---- Leave room on page close / refresh ----
+    useEffect(() => {
+        const handleUnload = () => {
+            if (socket.connected && socket.data?.roomId) {
+                socket.emit("leaveRoom");
+            }
+        };
+        window.addEventListener("pagehide", handleUnload);
+        window.addEventListener("beforeunload", handleUnload);
+        return () => {
+            window.removeEventListener("pagehide", handleUnload);
+            window.removeEventListener("beforeunload", handleUnload);
+        };
+    }, []);
+
     // ---- Handlers ----
     function generateRoomCode() {
         const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -239,8 +254,27 @@ export default function Lobby() {
         setChatInput("");
     }
 
+    // ── Back to Home — properly leave the room first ──
+    function handleBack() {
+        if (socket.connected) {
+            socket.emit("leaveRoom");   // tell server to remove us
+        }
+        // Clear room state from Zustand store
+        setRoomId(null);
+        setPlayers([]);              // setPlayers expects an array
+        setChatMessages([]);
+        setGameState("waiting");
+        setJoined(false);
+        setInputRoom("");
+        setIsReady(false);
+        navigate("/home");
+    }
+
     function handleLogout() {
-        if (socket.connected) socket.disconnect();
+        if (socket.connected) {
+            socket.emit("leaveRoom");   // leave room before disconnecting
+            socket.disconnect();
+        }
         logout();
         navigate("/");
     }
@@ -370,8 +404,8 @@ export default function Lobby() {
                             <p className="lobby-subtitle">Waiting Room</p>
                         </div>
                     </div>
-                    <button className="btn-back-lobby" onClick={() => navigate("/home")}>
-                        BACK
+                    <button className="btn-back-lobby" onClick={handleBack}>
+                        ← BACK
                     </button>
                 </div>
 
