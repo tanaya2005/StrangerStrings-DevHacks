@@ -105,6 +105,13 @@ const useStore = create((set, get) => ({
             delete p[id];
             return { platforms: p };
         }),
+
+    // ---- Achievements ----
+    achievements: {},
+    setAchievements: (ach) => set({ achievements: ach }),
+    achievementPopup: null,  // { achievement, newTier } or null
+    showAchievementPopup: (data) => set({ achievementPopup: data }),
+    dismissAchievementPopup: () => set({ achievementPopup: null }),
 }));
 
 export default useStore;

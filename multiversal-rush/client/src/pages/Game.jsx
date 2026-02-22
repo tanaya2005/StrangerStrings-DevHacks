@@ -11,6 +11,7 @@ import useStore from "../store/store";
 import RemotePlayers from "../components/Multiplayer/RemotePlayers";
 import HUD from "../components/UI/HUD";
 import MatchResultsOverlay from "../components/UI/MatchResultsOverlay";
+import AchievementPopup from "../components/UI/AchievementPopup";
 import World1 from "../components/Worlds/World1";
 import World2 from "../components/Worlds/World2";
 import Honeycomb from "../components/Worlds/Honeycomb";
@@ -32,6 +33,7 @@ export default function Game() {
     const setPlayers = useStore((s) => s.setPlayers);
     const setMatchResults = useStore((s) => s.setMatchResults);
     const showMatchResults = useStore((s) => s.showMatchResults);
+    const showAchievementPopup = useStore((s) => s.showAchievementPopup);
 
     // Initialize currentWorld to 0 (hub) when game starts
     useEffect(() => {
@@ -94,6 +96,12 @@ export default function Game() {
             updatePlayer(playerId, { position: { x: 0, y: 1, z: 0 } });
         });
 
+        // Achievement unlock notification
+        socket.on("achievementUnlocked", (data) => {
+            console.log(`[Game] achievementUnlocked:`, data);
+            showAchievementPopup(data);
+        });
+
         return () => {
             socket.off("playerMoved");
             socket.off("playerWorldChanged");
@@ -105,6 +113,7 @@ export default function Game() {
             socket.off("gameFinished");
             socket.off("playerLeft");
             socket.off("playerRespawned");
+            socket.off("achievementUnlocked");
         };
     }, []);
 
@@ -127,6 +136,10 @@ export default function Game() {
         setEliminated(true);
     }, []);
 
+    const emitAchievement = useCallback((type, value = 1) => {
+        socket.emit("achievementEvent", { type, value });
+    }, []);
+
     // Handle portal entry from HubWorld
     const handleEnterPortal = useCallback((portalId) => {
         setCurrentLevel(portalId);
@@ -145,6 +158,9 @@ export default function Game() {
         <div style={{ width: "100vw", height: "100vh", position: "relative", background: "#000" }}>
             {/* Match Results Overlay - Shows above everything */}
             {showMatchResults && <MatchResultsOverlay />}
+
+            {/* Achievement unlock popup */}
+            <AchievementPopup />
 
             <HUD
                 emitMethods={{ emitMove, emitWorldTransition, emitFinished, emitFell }}
@@ -171,15 +187,15 @@ export default function Game() {
                 <RemotePlayers />
 
                 {currentLevel === "hub" && (
-                    <HubWorld onEnterPortal={handleEnterPortal} emitMove={emitMove} emitFell={emitFell} />
+                    <HubWorld onEnterPortal={handleEnterPortal} emitMove={emitMove} emitFell={emitFell} emitAchievement={emitAchievement} />
                 )}
 
                 {currentLevel === "cyberverse" && (
-                    <World1 emitMove={emitMove} emitWorldTransition={emitWorldTransition} emitFell={emitFell} />
+                    <World1 emitMove={emitMove} emitWorldTransition={emitWorldTransition} emitFell={emitFell} emitAchievement={emitAchievement} />
                 )}
 
                 {currentLevel === "world2" && (
-                    <World2 emitMove={emitMove} emitWorldTransition={() => { }} emitFinished={emitFinished} emitFell={emitFell} />
+                    <World2 emitMove={emitMove} emitWorldTransition={() => { }} emitFinished={emitFinished} emitFell={emitFell} emitAchievement={emitAchievement} />
                 )}
 
                 {/* World 3 — Honeycomb Fall */}
@@ -189,6 +205,7 @@ export default function Game() {
                         emitWorldTransition={emitWorldTransition}
                         emitFell={emitFell}
                         emitEliminated={emitEliminated}
+                        emitAchievement={emitAchievement}
                     />
                 )}
 
@@ -198,6 +215,7 @@ export default function Game() {
                         emitMove={emitMove}
                         emitFinished={emitFinished}
                         emitFell={emitFell}
+                        emitAchievement={emitAchievement}
                     />
                 )}
 
@@ -207,6 +225,7 @@ export default function Game() {
                         emitMove={emitMove}
                         emitFinished={emitFinished}
                         emitFell={emitFell}
+                        emitAchievement={emitAchievement}
                     />
                 )}
             </Canvas>

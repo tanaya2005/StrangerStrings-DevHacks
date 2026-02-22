@@ -39,6 +39,20 @@ const UserSchema = new mongoose.Schema(
         trophies: { type: Number, default: 0 },
         wins: { type: Number, default: 0 },
         gamesPlayed: { type: Number, default: 0 },
+
+        // ---- Achievements ----
+        achievements: {
+            jumpMaster: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            raceFinisher: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            podiumChampion: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            trophyCollector: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            survivorSpirit: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            speedDemon: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            unstoppableMomentum: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            laserDodger: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            untouchableRun: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+            comebackKing: { count: { type: Number, default: 0 }, tier: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' } },
+        },
     },
     { timestamps: true }
 );

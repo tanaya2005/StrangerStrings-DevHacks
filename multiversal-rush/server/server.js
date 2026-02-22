@@ -11,6 +11,7 @@ import connectDB from "./config/db.js";
 import leaderboardRoutes from "./routes/leaderboardRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import voiceRoutes from "./routes/voiceRoutes.js";     // archit2 — LiveKit token
+import achievementRoutes from "./routes/achievementRoutes.js";
 import { registerGameSocket } from "./socket/gameSocket.js";
 import { attachChat } from "./socket/chat.js";
 
@@ -38,6 +39,7 @@ app.use(cors({
 app.use("/api/auth", authRoutes);          // signup / login / me
 app.use("/api/leaderboard", leaderboardRoutes);   // global leaderboard
 app.use("/api/voice", voiceRoutes);         // LiveKit token (archit2)
+app.use("/api/achievements", achievementRoutes);   // user achievements
 
 // Health check
 app.get("/", (req, res) => res.send("Multiversal Rush Server ✅"));

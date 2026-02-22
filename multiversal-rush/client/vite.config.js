@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// The deployed Render server URL
-const RENDER_URL = "https://strangerstrings-devhacks.onrender.com";
+// Point to LOCAL server during dev. Change back to Render URL before deploying:
+// const SERVER_TARGET = "https://strangerstrings-devhacks.onrender.com";
+const SERVER_TARGET = "http://localhost:5000";
 
 export default defineConfig({
     plugins: [react()],
@@ -13,11 +14,11 @@ export default defineConfig({
         // This is needed because Login.jsx uses relative URLs like /api/auth/login.
         proxy: {
             "/api": {
-                target: RENDER_URL,
+                target: SERVER_TARGET,
                 changeOrigin: true,
             },
             "/socket.io": {
-                target: RENDER_URL,
+                target: SERVER_TARGET,
                 ws: true,
                 changeOrigin: true,
             },

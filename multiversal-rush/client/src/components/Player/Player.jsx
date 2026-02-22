@@ -50,6 +50,7 @@ const Player = React.forwardRef(({
     emitMove,
     emitFell,
     emitWorldTransition,
+    emitAchievement,
     world = 1,
     startPosition = [0, BASE_Y, 0],
     tiles = [],
@@ -152,6 +153,7 @@ const Player = React.forwardRef(({
         if (keys.current[' '] && isGrounded.current && !isCrouching) {
             velocityY.current = JUMP_POWER;
             isGrounded.current = false;
+            emitAchievement?.('jump');
         }
         velocityY.current += GRAVITY * delta;
         const nextY = pos.y + velocityY.current * delta;

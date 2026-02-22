@@ -4,6 +4,7 @@
 // ============================================================
 
 import User from "../models/User.js";
+import { updateAchievement } from "../services/achievementService.js";
 
 /**
  * In-memory room store.
@@ -140,7 +141,7 @@ function playerCount(room) {
  */
 async function distributeTrophies(io, roomId, room) {
     const results = [];
-    
+
     // Process each player in finish order
     for (let i = 0; i < room.finishedOrder.length; i++) {
         const socketId = room.finishedOrder[i];
@@ -203,7 +204,7 @@ async function distributeTrophies(io, roomId, room) {
                     { $inc: { gamesPlayed: 1 } },
                     { new: true }
                 );
-                
+
                 results.push({
                     username: player.name,
                     place: 0, // Eliminated
@@ -221,13 +222,42 @@ async function distributeTrophies(io, roomId, room) {
     // Emit match results to all players
     io.to(roomId).emit("matchResults", { results });
 
+    // ---- Achievement updates: trophyCollector & survivorSpirit ----
+    for (const r of results) {
+        // trophyCollector
+        if (r.trophiesEarned > 0) {
+            const unlock = await updateAchievement(r.username, 'trophyCollector', r.trophiesEarned);
+            if (unlock) {
+                for (const sid in room.players) {
+                    if (room.players[sid].name === r.username) {
+                        io.to(sid).emit('achievementUnlocked', unlock);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // survivorSpirit (Survive without elimination)
+        if (r.place > 0) {
+            const ss = await updateAchievement(r.username, 'survivorSpirit', 1);
+            if (ss) {
+                for (const sid in room.players) {
+                    if (room.players[sid].name === r.username) {
+                        io.to(sid).emit('achievementUnlocked', ss);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     // Fetch and broadcast updated leaderboard
     try {
         const leaderboard = await User.find()
             .sort({ trophies: -1 })
             .limit(20)
             .select("username trophies wins gamesPlayed");
-        
+
         io.to(roomId).emit("leaderboardUpdate", { leaderboard });
     } catch (err) {
         console.error(`[Leaderboard Update] Error:`, err);
@@ -264,10 +294,10 @@ async function checkElimination(io, roomId, room) {
         });
 
         console.log(`[Room ${roomId}] Game finished. Winner: ${winner.name}`);
-        
+
         // Distribute trophies and show match results
         await distributeTrophies(io, roomId, room);
-        
+
         // After 10 seconds, reset room
         setTimeout(() => {
             io.to(roomId).emit("returnToLobby");
@@ -277,12 +307,12 @@ async function checkElimination(io, roomId, room) {
     // If no active players (all eliminated), end game
     if (activePlayers.length === 0) {
         room.gameState = "finished";
-        
+
         console.log(`[Room ${roomId}] Game finished. All players eliminated.`);
-        
+
         // Distribute trophies even if all eliminated
         await distributeTrophies(io, roomId, room);
-        
+
         // After 10 seconds, reset room
         setTimeout(() => {
             io.to(roomId).emit("returnToLobby");
@@ -313,6 +343,25 @@ export function registerGameSocket(io) {
 
                 const room = rooms[roomId];
 
+                // Start ranking interval if not active
+                if (!room.rankInterval) {
+                    room.rankInterval = setInterval(() => {
+                        if (room.gameState !== "playing") return;
+
+                        // Sort players by Z (most negative is furthest ahead)
+                        const sorted = Object.values(room.players)
+                            .filter(p => !p.finished && !p.eliminated)
+                            .sort((a, b) => a.position.z - b.position.z);
+
+                        sorted.forEach((p, index) => {
+                            const rank = index + 1;
+                            if (rank >= 4) {
+                                p.wasBehind = true;
+                            }
+                        });
+                    }, 5000);
+                }
+
                 // Reject if room is full
                 if (playerCount(room) >= MAX_PLAYERS_PER_ROOM) {
                     socket.emit("roomFull", { message: "Room is full (max 5 players)" });
@@ -339,6 +388,8 @@ export function registerGameSocket(io) {
                     eliminated: false,
                     finishTime: null,
                     ready: false,      // for the "ready" lobby mechanic
+                    fellThisRace: false, // for Untouchable Run achievement
+                    wasBehind: false,    // for Comeback King achievement
                 };
 
                 console.log(
@@ -524,10 +575,46 @@ export function registerGameSocket(io) {
             if (allFinished) {
                 room.gameState = "finished";
                 console.log(`[Room ${roomId}] All players finished!`);
-                
+
                 // Distribute trophies and show match results
                 await distributeTrophies(io, roomId, room);
-                
+
+                // ---- Achievements for each finisher ----
+                for (let i = 0; i < room.finishedOrder.length; i++) {
+                    const sid = room.finishedOrder[i];
+                    const p = room.players[sid];
+                    if (!p) continue;
+                    const place = i + 1;
+
+                    // raceFinisher
+                    const rf = await updateAchievement(p.name, 'raceFinisher', 1);
+                    if (rf) io.to(sid).emit('achievementUnlocked', rf);
+
+                    // podiumChampion (top 3)
+                    if (place <= 3) {
+                        const pc = await updateAchievement(p.name, 'podiumChampion', 1);
+                        if (pc) io.to(sid).emit('achievementUnlocked', pc);
+                    }
+
+                    // speedDemon (1st place)
+                    if (place === 1) {
+                        const sd = await updateAchievement(p.name, 'speedDemon', 1);
+                        if (sd) io.to(sid).emit('achievementUnlocked', sd);
+
+                        // comebackKing (Won after being behind)
+                        if (p.wasBehind) {
+                            const ck = await updateAchievement(p.name, 'comebackKing', 1);
+                            if (ck) io.to(sid).emit('achievementUnlocked', ck);
+                        }
+                    }
+
+                    // untouchableRun (Finished race without falling)
+                    if (!p.fellThisRace) {
+                        const ur = await updateAchievement(p.name, 'untouchableRun', 1);
+                        if (ur) io.to(sid).emit('achievementUnlocked', ur);
+                    }
+                }
+
                 // After 10 seconds, signal return to lobby
                 setTimeout(() => {
                     io.to(roomId).emit("returnToLobby");
@@ -543,6 +630,10 @@ export function registerGameSocket(io) {
         socket.on("playerFell", () => {
             const roomId = socket.data.roomId;
             if (!roomId || !rooms[roomId]) return;
+
+            const player = rooms[roomId].players[socket.id];
+            if (player) player.fellThisRace = true;
+
             socket.to(roomId).emit("playerRespawned", { playerId: socket.id });
         });
 
@@ -587,10 +678,10 @@ export function registerGameSocket(io) {
                 });
 
                 console.log(`[Room ${roomId}] ${winner.name} wins (last player standing)!`);
-                
+
                 // Distribute trophies and show match results
                 await distributeTrophies(io, roomId, room);
-                
+
                 // After 10 seconds, signal return to lobby
                 setTimeout(() => {
                     io.to(roomId).emit("returnToLobby");
@@ -599,10 +690,10 @@ export function registerGameSocket(io) {
                 // All eliminated
                 room.gameState = "finished";
                 console.log(`[Room ${roomId}] All players eliminated!`);
-                
+
                 // Distribute trophies (all get 0)
                 await distributeTrophies(io, roomId, room);
-                
+
                 // After 10 seconds, signal return to lobby
                 setTimeout(() => {
                     io.to(roomId).emit("returnToLobby");
@@ -650,6 +741,38 @@ export function registerGameSocket(io) {
             if (!roomId) return;
 
             io.to(roomId).emit("leaderboardUpdate", { leaderboard });
+        });
+
+        // --------------------------------------------------------
+        //  achievementEvent
+        //  Client sends: { type, value }
+        //  For client-tracked stats: jumps, laserDodges, slideDistance,
+        //  flawlessFinish, comebackWin
+        // --------------------------------------------------------
+        socket.on("achievementEvent", async ({ type, value }) => {
+            const roomId = socket.data.roomId;
+            if (!roomId || !rooms[roomId]) return;
+            const player = rooms[roomId].players[socket.id];
+            if (!player) return;
+
+            // Map client event types to achievement keys
+            const typeMap = {
+                jump: 'jumpMaster',
+                laserDodge: 'laserDodger',
+                slideDistance: 'unstoppableMomentum',
+                flawlessFinish: 'untouchableRun',
+                comebackWin: 'comebackKing',
+                survive: 'survivorSpirit',
+            };
+
+            const achKey = typeMap[type];
+            if (!achKey) return;
+
+            const increment = value || 1;
+            const unlock = await updateAchievement(player.name, achKey, increment);
+            if (unlock) {
+                socket.emit('achievementUnlocked', unlock);
+            }
         });
 
         // --------------------------------------------------------

@@ -20,7 +20,7 @@ function HexTile({ position, status }) {
     );
 }
 
-export default function Honeycomb({ emitMove, emitWorldTransition, emitFell, emitEliminated }) {
+export default function Honeycomb({ emitMove, emitWorldTransition, emitFell, emitEliminated, emitAchievement }) {
     const [tiles, setTiles] = useState([]);
     const [eliminated, setEliminated] = useState(false);
     const eliminatedRef = useRef(false);  // prevent double-fire
@@ -97,6 +97,7 @@ export default function Honeycomb({ emitMove, emitWorldTransition, emitFell, emi
                     emitMove={emitMove}
                     emitFell={emitFell}
                     emitWorldTransition={emitWorldTransition}
+                    emitAchievement={emitAchievement}
                     world={3}
                     startPosition={[0, 12, 0]}
                     tiles={tiles}

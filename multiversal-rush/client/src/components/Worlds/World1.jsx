@@ -14,7 +14,7 @@ import {
     FlyingVehicle
 } from '../Environment/NeonParadoxComponents';
 
-export default function World1({ emitMove, emitWorldTransition, emitFell }) {
+export default function World1({ emitMove, emitWorldTransition, emitFell, emitAchievement }) {
     const portalRef = useRef();
     const playerRef = useRef();
 
@@ -161,6 +161,7 @@ export default function World1({ emitMove, emitWorldTransition, emitFell }) {
                 emitMove={emitMove}
                 emitFell={emitFell}
                 emitWorldTransition={emitWorldTransition}
+                emitAchievement={emitAchievement}
                 world={1}
                 startPosition={[0, 5, 0]}
             />

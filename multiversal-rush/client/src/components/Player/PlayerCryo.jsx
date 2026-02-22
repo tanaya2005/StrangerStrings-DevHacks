@@ -58,11 +58,13 @@ export default React.forwardRef(function PlayerCryo({
     emitMove,
     emitFell,
     emitWorldTransition,
+    emitAchievement,
     world = 1,
     startPosition = [0, 1, 0],
     platforms = [],
 }, ref) {
     const speedMultiplier = useRef(1.0);
+    const accumulatedSlideDist = useRef(0); // Track for achievement
     // ---- Load Human/Panda Model ----
     const { scene } = useGLTF('/models/red-panda/scene.gltf');
 
@@ -142,6 +144,21 @@ export default React.forwardRef(function PlayerCryo({
         pos.x += velocityXZ.current.x * delta;
         pos.z += velocityXZ.current.z * delta;
 
+        // ---- Track Slide Distance Achievement ----
+        if (isGrounded.current && currentOnIce.current) {
+            const distMoved = Math.sqrt(
+                (velocityXZ.current.x * delta) ** 2 +
+                (velocityXZ.current.z * delta) ** 2
+            );
+            accumulatedSlideDist.current += distMoved;
+
+            // Emit to server every 10 meters to avoid over-flooding
+            if (accumulatedSlideDist.current >= 10) {
+                emitAchievement?.('slideDistance', Math.floor(accumulatedSlideDist.current));
+                accumulatedSlideDist.current = 0;
+            }
+        }
+
         // ---- 2. Crouch Scale & Rotation ----
         const targetScaleY = isCrouching ? 0.5 : 1.0;
         // Base scale for the model is 1.2
@@ -159,6 +176,7 @@ export default React.forwardRef(function PlayerCryo({
         if (keys.current[' '] && isGrounded.current && !isCrouching) {
             velocityY.current = JUMP_POWER;
             isGrounded.current = false;
+            emitAchievement?.('jump');
         }
         velocityY.current += GRAVITY * delta;
         pos.y += velocityY.current * delta;

@@ -7,7 +7,7 @@ import { useFrame } from '@react-three/fiber';
 import Player from '../Player/Player';
 import Platform from '../Obstacles/Platform';
 
-export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
+export default function HubWorld({ onEnterPortal, emitMove, emitFell, emitAchievement }) {
     const cyberPortalRef = useRef(null);
     const honeyPortalRef = useRef(null);
     const cryoPortalRef = useRef(null);
@@ -101,6 +101,7 @@ export default function HubWorld({ onEnterPortal, emitMove, emitFell }) {
             <Player
                 emitMove={emitMove}
                 emitFell={emitFell}
+                emitAchievement={emitAchievement}
                 world={0}
                 startPosition={[0, 2, 0]}
                 portals={portals}
