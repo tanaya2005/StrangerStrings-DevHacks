@@ -1,0 +1,529 @@
+/* ============================================================
+   ShopOverlay.css - Premium Multiversal Shop Style
+   ============================================================ */
+.shop-overlay-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(5, 10, 24, 0.85);
+    backdrop-filter: blur(20px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1100;
+    animation: shopFadeIn 0.3s ease-out;
+}
+
+.shop-overlay-card {
+    background: linear-gradient(135deg, rgba(15, 25, 55, 0.95) 0%, rgba(5, 10, 25, 0.98) 100%);
+    border: 1px solid rgba(0, 255, 224, 0.25);
+    border-radius: 32px;
+    width: 95%;
+    max-width: 900px;
+    height: 85vh;
+    display: flex;
+    flex-direction: column;
+    padding: 35px;
+    box-shadow:
+        0 0 50px rgba(0, 0, 0, 0.5),
+        inset 0 0 30px rgba(0, 255, 224, 0.05);
+    position: relative;
+    overflow: hidden;
+    animation: shopSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes shopFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes shopSlideUp {
+    from {
+        transform: translateY(50px) scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+/* --- Header --- */
+.shop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 25px;
+}
+
+.shop-title-group {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.shop-logo-icon {
+    font-size: 2.2rem;
+    background: rgba(0, 255, 224, 0.1);
+    padding: 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(0, 255, 224, 0.2);
+}
+
+.shop-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 900;
+    background: linear-gradient(90deg, #00ffe0, #a862ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 2px;
+    margin: 0;
+}
+
+.shop-subtitle {
+    font-size: 0.8rem;
+    color: #8899aa;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    margin: 4px 0 0;
+}
+
+.shop-stats {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.shop-gems {
+    background: rgba(0, 255, 224, 0.1);
+    border: 1px solid #00ffe044;
+    padding: 10px 20px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'Orbitron', sans-serif;
+    box-shadow: 0 0 15px rgba(0, 255, 224, 0.1);
+}
+
+.gem-val {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 0 10px rgba(0, 255, 224, 0.3);
+}
+
+.gem-icon {
+    font-size: 1.3rem;
+}
+
+.btn-close-shop {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.2s;
+}
+
+.btn-close-shop:hover {
+    background: rgba(255, 77, 109, 0.2);
+    border-color: #ff4d6d;
+    transform: rotate(90deg);
+}
+
+/* --- Navigation & Filters --- */
+.shop-filters {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 30px;
+}
+
+.shop-filters button {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #667788;
+    padding: 10px 24px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    transition: all 0.3s;
+}
+
+.shop-filters button:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+}
+
+.shop-filters button.active {
+    background: rgba(0, 255, 224, 0.12);
+    border-color: #00ffe0;
+    color: #00ffe0;
+    box-shadow: 0 0 20px rgba(0, 255, 224, 0.15);
+}
+
+/* --- Content Layout --- */
+.shop-main-content {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 40px;
+    min-height: 0;
+}
+
+.shop-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    position: relative;
+    background: radial-gradient(circle at center, rgba(0, 255, 224, 0.05) 0%, transparent 70%);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    transition: box-shadow 0.4s;
+}
+
+.shop-display:hover {
+    box-shadow: inset 0 0 50px rgba(0, 255, 224, 0.05);
+}
+
+.avatar-preview-box {
+    flex: 1;
+    height: 100%;
+    position: relative;
+    cursor: grab;
+}
+
+.avatar-preview-box:active {
+    cursor: grabbing;
+}
+
+.preview-glow {
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    top: -50%;
+    left: -50%;
+    background: radial-gradient(circle, rgba(0, 255, 224, 0.05) 0%, transparent 60%);
+    pointer-events: none;
+    animation: shopGlowPulse 5s infinite;
+}
+
+@keyframes shopGlowPulse {
+
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+.nav-arrow {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(0, 255, 224, 0.2);
+    color: #00ffe0;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    font-size: 2rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+    z-index: 10;
+}
+
+.nav-arrow:hover:not(:disabled) {
+    background: rgba(0, 255, 224, 0.15);
+    border-color: #00ffe0;
+    transform: scale(1.15);
+}
+
+.nav-arrow:disabled {
+    opacity: 0.1;
+    cursor: default;
+}
+
+/* --- Side Card --- */
+.shop-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.char-detail-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 30px;
+    border-radius: 24px;
+    text-align: left;
+    backdrop-filter: blur(10px);
+}
+
+.rarity-tag {
+    display: inline-block;
+    background: linear-gradient(90deg, #a862ff, #5e35e8);
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    margin-bottom: 15px;
+}
+
+.char-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: #fff;
+    margin: 0 0 20px 0;
+    letter-spacing: 1px;
+}
+
+.char-status {
+    height: 40px;
+    margin-bottom: 30px;
+}
+
+.shop-message {
+    color: #556677;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 0;
+    transition: all 0.3s;
+    opacity: 0.7;
+}
+
+.shop-message.active {
+    color: #00ffe0;
+    opacity: 1;
+    text-shadow: 0 0 15px rgba(0, 255, 224, 0.4);
+}
+
+/* Loading State for 3D */
+.avatar-preview-box:empty::after,
+.avatar-preview-box:has(canvas[style*="opacity: 0"])::after {
+    content: "SYNCING MODEL...";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', sans-serif;
+    color: #00ffe044;
+    letter-spacing: 5px;
+    font-size: 0.8rem;
+    animation: textPulse 2s infinite;
+}
+
+@keyframes textPulse {
+
+    0%,
+    100% {
+        opacity: 0.2;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}
+
+.btn-shop-action {
+    width: 100%;
+    padding: 18px;
+    border-radius: 16px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 900;
+    cursor: pointer;
+    transition: all 0.3s;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.btn-shop-action.buy {
+    background: linear-gradient(135deg, #00ffe0 0%, #008291 100%);
+    border: none;
+    color: #051025;
+    box-shadow: 0 10px 25px rgba(0, 255, 224, 0.2);
+}
+
+.btn-shop-action.buy:hover:not(:disabled) {
+    transform: translateY(-4px);
+    box-shadow: 0 15px 35px rgba(0, 255, 224, 0.4);
+}
+
+.btn-shop-action.equip {
+    background: transparent;
+    border: 2px solid #00ffe0;
+    color: #00ffe0;
+}
+
+.btn-shop-action.equip:hover {
+    background: rgba(0, 255, 224, 0.1);
+    transform: translateY(-2px);
+}
+
+.btn-shop-action.equipped {
+    background: rgba(0, 255, 224, 0.1);
+    border: 1px solid rgba(0, 255, 224, 0.2);
+    color: rgba(0, 255, 224, 0.5);
+    cursor: default;
+}
+
+.btn-shop-action:disabled {
+    filter: grayscale(1);
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* --- Locked State UI --- */
+.locked-badge-overlay {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 77, 109, 0.15);
+    border: 1px solid rgba(255, 77, 109, 0.3);
+    padding: 10px 20px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 20;
+    backdrop-filter: blur(10px);
+    color: #ff4d6d;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    animation: lockedPulse 3s infinite;
+}
+
+@keyframes lockedPulse {
+
+    0%,
+    100% {
+        opacity: 0.8;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+}
+
+.locked-icon {
+    font-size: 1rem;
+}
+
+/* Detail Top Tags */
+.detail-top-tags {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.rarity-tag {
+    margin-bottom: 0;
+    /* Override previous margin */
+}
+
+.price-badge {
+    background: rgba(0, 255, 224, 0.1);
+    border: 1px solid rgba(0, 255, 224, 0.2);
+    padding: 5px 15px;
+    border-radius: 8px;
+    color: #00ffe0;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Multi-step Glow for Unowned characters in preview */
+.shop-display:has(.locked-badge-overlay) {
+    background: radial-gradient(circle at center, rgba(255, 77, 109, 0.05) 0%, transparent 70%);
+}
+
+.shop-display:has(.locked-badge-overlay):hover {
+    box-shadow: inset 0 0 50px rgba(255, 77, 109, 0.05);
+}
+
+/* Filter Button Adjustments */
+.shop-filters button.active[data-filter="unowned"] {
+    background: rgba(255, 77, 109, 0.12);
+    border-color: #ff4d6d;
+    color: #ff4d6d;
+    box-shadow: 0 0 20px rgba(255, 77, 109, 0.15);
+}
+
+/* Empty State / No Chars */
+.no-chars-msg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px;
+    background: rgba(255, 255, 255, 0.01);
+    border-radius: 32px;
+    border: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.no-chars-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    filter: drop-shadow(0 0 20px rgba(0, 255, 224, 0.3));
+}
+
+.no-chars-msg h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem;
+    color: #fff;
+    margin: 0 0 15px;
+    letter-spacing: 2px;
+}
+
+.no-chars-msg p {
+    color: #667788;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin: 0 0 30px;
+    max-width: 300px;
+}
+
+@media (max-width: 800px) {
+    .shop-main-content {
+        grid-template-columns: 1fr;
+    }
+
+    .shop-info {
+        margin-top: 20px;
+    }
+}

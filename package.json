@@ -1,0 +1,9 @@
+{
+    "name": "strangerstrings-devhacks",
+    "version": "1.0.0",
+    "private": true,
+    "license": "MIT",
+    "scripts": {
+        "build": "cd multiversal-rush/client && npm install && npm run build"
+    }
+}

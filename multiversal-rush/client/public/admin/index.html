@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multiversal Rush — Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #070d1c;
+            --card: rgba(10, 18, 40, 0.95);
+            --border: rgba(0, 230, 180, 0.18);
+            --accent: #00ffe0;
+            --accent2: #a862ff;
+            --danger: #ff4d6d;
+            --warn: #ffaa00;
+            --success: #00e89a;
+            --text: #d0e8ff;
+            --muted: rgba(160, 200, 255, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Login Screen ── */
+        #login-screen {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(ellipse at 50% 40%, rgba(0, 255, 200, 0.06) 0%, transparent 70%);
+        }
+
+        .login-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 1.2rem;
+            padding: 3rem 2.5rem;
+            width: min(90vw, 420px);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 0 60px rgba(0, 200, 160, 0.08);
+            text-align: center;
+        }
+
+        .login-card h1 {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.6rem;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.4rem;
+        }
+
+        .login-card p {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-bottom: 2rem;
+        }
+
+        .login-card input {
+            width: 100%;
+            padding: 0.85rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 0.6rem;
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            outline: none;
+            text-align: center;
+            letter-spacing: 0.15em;
+        }
+
+        .login-card input:focus {
+            border-color: var(--accent);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.6rem;
+            font-size: 0.92rem;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.18s;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00c9a7, #5e35e8);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.88;
+            transform: scale(1.02);
+        }
+
+        .btn-danger {
+            background: rgba(255, 77, 109, 0.18);
+            border: 1px solid rgba(255, 77, 109, 0.4);
+            color: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 77, 109, 0.3);
+        }
+
+        .btn-warn {
+            background: rgba(255, 170, 0, 0.15);
+            border: 1px solid rgba(255, 170, 0, 0.35);
+            color: var(--warn);
+        }
+
+        .btn-warn:hover {
+            background: rgba(255, 170, 0, 0.25);
+        }
+
+        .btn-success {
+            background: rgba(0, 232, 154, 0.15);
+            border: 1px solid rgba(0, 232, 154, 0.35);
+            color: var(--success);
+        }
+
+        .btn-success:hover {
+            background: rgba(0, 232, 154, 0.25);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .login-error {
+            color: var(--danger);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+
+        /* ── App Layout ── */
+        #app {
+            display: none;
+            min-height: 100vh;
+            flex-direction: column;
+        }
+
+        #app.visible {
+            display: flex;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.9rem 2rem;
+            background: rgba(7, 13, 28, 0.97);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-logo {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.1rem;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: blink 1.4s ease infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* ── Sidebar + Content ── */
+        .layout {
+            display: flex;
+            flex: 1;
+        }
+
+        nav {
+            width: 220px;
+            flex-shrink: 0;
+            background: rgba(7, 13, 28, 0.8);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 0;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--muted);
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .nav-item:hover {
+            background: rgba(0, 255, 200, 0.05);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: rgba(0, 255, 200, 0.08);
+            border-left-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .nav-icon {
+            font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        main {
+            flex: 1;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        /* ── Pages ── */
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* ── Page Header ── */
+        .page-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.4rem;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ── Stat Cards ── */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.2rem 1.4rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+            font-family: 'Orbitron', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.4rem;
+            margin-bottom: 1.4rem;
+        }
+
+        .card-title {
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        /* ── Tables ── */
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.65rem 0.8rem;
+            color: var(--muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 0.65rem 0.8rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: middle;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(0, 255, 200, 0.03);
+        }
+
+        /* ── Live Rooms ── */
+        .room-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .room-card {
+            background: rgba(0, 255, 200, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 0.8rem;
+            padding: 1rem 1.1rem;
+        }
+
+        .room-id {
+            font-family: 'Orbitron', monospace;
+            font-size: 1rem;
+            color: var(--accent);
+        }
+
+        .room-state {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 700;
+        }
+
+        .state-waiting {
+            background: rgba(255, 170, 0, 0.15);
+            color: var(--warn);
+        }
+
+        .state-lobby {
+            background: rgba(168, 98, 255, 0.15);
+            color: var(--accent2);
+        }
+
+        .state-playing {
+            background: rgba(0, 232, 154, 0.15);
+            color: var(--success);
+        }
+
+        .state-finished {
+            background: rgba(255, 77, 109, 0.15);
+            color: var(--danger);
+        }
+
+        .player-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 0.78rem;
+            margin: 3px 3px 0 0;
+        }
+
+        /* ── Badges ── */
+        .badge {
+            font-size: 0.72rem;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .badge-green {
+            background: rgba(0, 232, 154, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(0, 232, 154, 0.3);
+        }
+
+        .badge-red {
+            background: rgba(255, 77, 109, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(255, 77, 109, 0.3);
+        }
+
+        .badge-yellow {
+            background: rgba(255, 170, 0, 0.15);
+            color: var(--warn);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+        }
+
+        .badge-purple {
+            background: rgba(168, 98, 255, 0.15);
+            color: var(--accent2);
+            border: 1px solid rgba(168, 98, 255, 0.3);
+        }
+
+        /* ── Broadcast bar ── */
+        .broadcast-row {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .broadcast-row input {
+            flex: 1;
+            padding: 0.65rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 0.6rem;
+            color: var(--text);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .broadcast-row input:focus {
+            border-color: var(--accent);
+        }
+
+        /* ── Pagination ── */
+        .pagination {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination span {
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        /* ── Search ── */
+        .search-row {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .search-row input {
+            flex: 1;
+            padding: 0.6rem 0.9rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 0.6rem;
+            color: var(--text);
+            font-size: 0.88rem;
+            outline: none;
+            max-width: 300px;
+        }
+
+        .search-row input:focus {
+            border-color: var(--accent);
+        }
+
+        /* ── Toast ── */
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(10, 18, 40, 0.97);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 20px;
+            font-size: 0.88rem;
+            color: var(--text);
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            animation: frSlideIn 0.3s ease;
+        }
+
+        @keyframes frSlideIn {
+            from {
+                transform: translateX(60px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* ── Map chart bar ── */
+        .map-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 6px 0;
+            font-size: 0.85rem;
+        }
+
+        .map-bar-label {
+            width: 130px;
+            flex-shrink: 0;
+            color: var(--text);
+        }
+
+        .map-bar-bg {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 999px;
+            height: 10px;
+        }
+
+        .map-bar-fill {
+            height: 10px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            transition: width 0.5s ease;
+        }
+
+        .map-bar-count {
+            width: 40px;
+            text-align: right;
+            color: var(--muted);
+            font-size: 0.78rem;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            nav {
+                width: 55px;
+            }
+
+            .nav-item span {
+                display: none;
+            }
+
+            main {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ══════════════════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════════════════ -->
+    <div id="login-screen">
+        <div class="login-card">
+            <h1>🔒 Admin Panel</h1>
+            <p>Multiversal Rush — Restricted Access</p>
+            <input type="password" id="admin-secret-input" placeholder="Enter admin secret…" autocomplete="off" />
+            <br />
+            <button class="btn btn-primary" onclick="doLogin()" style="width:100%">Unlock Admin Panel</button>
+            <p id="login-error" class="login-error"></p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+     MAIN APP
+══════════════════════════════════════════════════════════ -->
+    <div id="app">
+
+        <header>
+            <div class="header-logo">⚡ MR Admin</div>
+            <div class="header-meta">
+                <div class="live-dot"></div>
+                <span style="font-size:0.8rem;color:var(--muted)">Live</span>
+                <button class="btn btn-ghost btn-sm" onclick="doLogout()">Logout</button>
+            </div>
+        </header>
+
+        <div class="layout">
+            <!-- Sidebar -->
+            <nav>
+                <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+                    <span class="nav-icon">📊</span><span>Dashboard</span>
+                </div>
+                <div class="nav-item" onclick="showPage('live')" id="nav-live">
+                    <span class="nav-icon">🎮</span><span>Live Rooms</span>
+                </div>
+                <div class="nav-item" onclick="showPage('games')" id="nav-games">
+                    <span class="nav-icon">🏁</span><span>Games</span>
+                </div>
+                <div class="nav-item" onclick="showPage('users')" id="nav-users">
+                    <span class="nav-icon">👤</span><span>Users</span>
+                </div>
+                <div class="nav-item" onclick="showPage('broadcast')" id="nav-broadcast">
+                    <span class="nav-icon">📢</span><span>Broadcast</span>
+                </div>
+            </nav>
+
+            <main>
+
+                <!-- ── Dashboard ── -->
+                <div class="page active" id="page-dashboard">
+                    <div class="page-title">📊 Dashboard</div>
+
+                    <div class="stat-grid" id="stat-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="s-users">—</div>
+                            <div class="stat-label">Total Users</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="s-total-games">—</div>
+                            <div class="stat-label">Total Games</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="s-active">—</div>
+                            <div class="stat-label">Active Games</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="s-completed">—</div>
+                            <div class="stat-label">Completed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="s-aborted">—</div>
+                            <div class="stat-label">Aborted</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="s-live-rooms">—</div>
+                            <div class="stat-label">Live Rooms</div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;">
+                        <!-- Map popularity -->
+                        <div class="card">
+                            <div class="card-title">🗺️ Map Popularity</div>
+                            <div id="map-chart">Loading…</div>
+                        </div>
+                        <!-- Games per day -->
+                        <div class="card">
+                            <div class="card-title">📅 Games (last 7 days)</div>
+                            <div id="day-chart">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Live Rooms ── -->
+                <div class="page" id="page-live">
+                    <div class="page-title">🎮 Live Rooms</div>
+                    <div class="card">
+                        <div class="card-title">Broadcast to ALL players</div>
+                        <div class="broadcast-row">
+                            <input id="broadcast-msg" placeholder="Type a server-wide announcement…" />
+                            <button class="btn btn-warn" onclick="sendBroadcast()">📢 Send</button>
+                        </div>
+                    </div>
+                    <div id="live-rooms-container">
+                        <p style="color:var(--muted)">No active rooms.</p>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="refreshLive()" style="margin-top:1rem">🔄
+                        Refresh</button>
+                </div>
+
+                <!-- ── Games ── -->
+                <div class="page" id="page-games">
+                    <div class="page-title">🏁 Game History</div>
+                    <div class="search-row">
+                        <select id="games-map-filter"
+                            style="padding:0.6rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:0.6rem;color:var(--text);outline:none;">
+                            <option value="">All Maps</option>
+                            <option value="frozenfrenzy">Frozen Frenzy</option>
+                            <option value="lavahell">Lava Hell</option>
+                            <option value="honeycomb">Honeycomb</option>
+                            <option value="neonparadox">Neon Paradox</option>
+                            <option value="cryovoid">Cryo Void</option>
+                        </select>
+                        <select id="games-status-filter"
+                            style="padding:0.6rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:0.6rem;color:var(--text);outline:none;">
+                            <option value="">All Status</option>
+                            <option value="completed">Completed</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="aborted">Aborted</option>
+                        </select>
+                        <button class="btn btn-ghost btn-sm" onclick="loadGames(0)">Filter</button>
+                    </div>
+                    <div class="card table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Room</th>
+                                    <th>Map</th>
+                                    <th>Status</th>
+                                    <th>Winner</th>
+                                    <th>Players</th>
+                                    <th>Duration</th>
+                                    <th>Date</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="games-tbody">
+                                <tr>
+                                    <td colspan="8" style="color:var(--muted)">Loading…</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="games-pagination"></div>
+                </div>
+
+                <!-- ── Users ── -->
+                <div class="page" id="page-users">
+                    <div class="page-title">👤 User Management</div>
+                    <div class="search-row">
+                        <input id="user-search" placeholder="Search by username…"
+                            onkeydown="if(event.key==='Enter')loadUsers(0)" />
+                        <button class="btn btn-ghost btn-sm" onclick="loadUsers(0)">Search</button>
+                    </div>
+                    <div class="card table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Trophies</th>
+                                    <th>Wins</th>
+                                    <th>Games</th>
+                                    <th>Status</th>
+                                    <th>Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-tbody">
+                                <tr>
+                                    <td colspan="8" style="color:var(--muted)">Loading…</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="users-pagination"></div>
+                </div>
+
+                <!-- ── Broadcast ── -->
+                <div class="page" id="page-broadcast">
+                    <div class="page-title">📢 Broadcast</div>
+                    <div class="card">
+                        <div class="card-title">Send a message to ALL connected players</div>
+                        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem;">
+                            This will appear as a toast popup on every player's screen immediately.
+                        </p>
+                        <div class="broadcast-row">
+                            <input id="broadcast-msg2" placeholder="e.g. Server maintenance in 5 minutes…" />
+                            <button class="btn btn-warn" onclick="sendBroadcast2()">📢 Broadcast</button>
+                        </div>
+                    </div>
+                    <div class="card" style="margin-top:1rem">
+                        <div class="card-title">⚠️ Danger Zone</div>
+                        <p style="color:var(--muted);font-size:0.83rem;margin-bottom:1rem;">
+                            These actions are irreversible. Use with caution.
+                        </p>
+                        <button class="btn btn-danger"
+                            onclick="if(confirm('Force-end ALL active rooms? Players will be returned to lobby.'))forceEndAll()">
+                            🛑 Force-End All Active Rooms
+                        </button>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast"></div>
+
+    <script>
+        // ── Config ──────────────────────────────────────────────────
+        // Auto-detect: use localhost when running locally, production otherwise
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API = isLocal
+            ? 'http://localhost:5000/api/admin'
+            : 'https://strangerstrings-devhacks.onrender.com/api/admin';
+
+        let token = null;
+        let refreshInterval = null;
+
+        // ── Auth ─────────────────────────────────────────────────────
+        async function doLogin() {
+            const secret = document.getElementById('admin-secret-input').value.trim();
+            try {
+                const res = await fetch(`${API}/login`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ secret })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Login failed');
+                token = data.token;
+                sessionStorage.setItem('mr_admin_token', token);
+                showApp();
+            } catch (e) {
+                document.getElementById('login-error').textContent = e.message;
+            }
+        }
+
+        function doLogout() {
+            token = null;
+            sessionStorage.removeItem('mr_admin_token');
+            clearInterval(refreshInterval);
+            document.getElementById('app').classList.remove('visible');
+            document.getElementById('login-screen').style.display = 'flex';
+        }
+
+        function showApp() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app').classList.add('visible');
+            loadDashboard();
+            loadUsers(0);
+            loadGames(0);
+            // Auto-refresh dashboard every 15s
+            refreshInterval = setInterval(() => {
+                if (document.getElementById('page-dashboard').classList.contains('active')) loadDashboard();
+                if (document.getElementById('page-live').classList.contains('active')) refreshLive();
+            }, 15000);
+        }
+
+        // ── Navigation ────────────────────────────────────────────────
+        function showPage(name) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`page-${name}`).classList.add('active');
+            document.getElementById(`nav-${name}`).classList.add('active');
+            if (name === 'live') refreshLive();
+            if (name === 'games') loadGames(0);
+            if (name === 'users') loadUsers(0);
+            if (name === 'dashboard') loadDashboard();
+        }
+
+        // ── API helper ────────────────────────────────────────────────
+        async function api(path, method = 'GET', body = null) {
+            const opts = { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
+            if (body) opts.body = JSON.stringify(body);
+            const res = await fetch(`${API}${path}`, opts);
+            if (res.status === 401) { doLogout(); throw new Error('Session expired'); }
+            return res.json();
+        }
+
+        // ── Toast ─────────────────────────────────────────────────────
+        function toast(msg, color = 'var(--accent)') {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.style.borderColor = color;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 3500);
+        }
+
+        // ── Dashboard ─────────────────────────────────────────────────
+        async function loadDashboard() {
+            try {
+                const data = await api('/overview');
+                const s = data.stats;
+
+                document.getElementById('s-users').textContent = s.totalUsers;
+                document.getElementById('s-total-games').textContent = s.totalGames;
+                document.getElementById('s-active').textContent = s.activeGames;
+                document.getElementById('s-completed').textContent = s.completedGames;
+                document.getElementById('s-aborted').textContent = s.abortedGames;
+                document.getElementById('s-live-rooms').textContent = data.liveRooms.length;
+
+                // Map popularity chart
+                const mapMax = data.mapStats[0]?.count || 1;
+                const MAP_EMO = { frozenfrenzy: '🌨️', lavahell: '🔥', honeycomb: '🍯', neonparadox: '🔮', cryovoid: '❄️' };
+                document.getElementById('map-chart').innerHTML =
+                    data.mapStats.length === 0
+                        ? '<p style="color:var(--muted);font-size:0.85rem">No games played yet.</p>'
+                        : data.mapStats.map(m => `
+            <div class="map-bar-row">
+                <div class="map-bar-label">${MAP_EMO[m._id] || '🗺️'} ${m._id}</div>
+                <div class="map-bar-bg"><div class="map-bar-fill" style="width:${Math.round(m.count / mapMax * 100)}%"></div></div>
+                <div class="map-bar-count">${m.count}</div>
+            </div>`).join('');
+
+                // Games per day
+                document.getElementById('day-chart').innerHTML =
+                    data.gamesPerDay.length === 0
+                        ? '<p style="color:var(--muted);font-size:0.85rem">No data yet.</p>'
+                        : data.gamesPerDay.map(d => `
+            <div class="map-bar-row">
+                <div class="map-bar-label" style="font-size:0.78rem">${d._id}</div>
+                <div class="map-bar-bg"><div class="map-bar-fill" style="width:${Math.min(d.count * 20, 100)}%;background:linear-gradient(90deg,#a862ff,#00ffe0)"></div></div>
+                <div class="map-bar-count">${d.count}</div>
+            </div>`).join('');
+
+                // Store rooms for Live page
+                renderLiveRooms(data.liveRooms);
+            } catch (e) { console.error(e); }
+        }
+
+        // ── Live Rooms ────────────────────────────────────────────────
+        async function refreshLive() {
+            try {
+                const data = await api('/overview');
+                renderLiveRooms(data.liveRooms);
+            } catch { }
+        }
+
+        function renderLiveRooms(rooms) {
+            const el = document.getElementById('live-rooms-container');
+            if (!rooms || rooms.length === 0) {
+                el.innerHTML = '<p style="color:var(--muted)">No active rooms right now.</p>';
+                return;
+            }
+            el.innerHTML = `<div class="room-grid">${rooms.map(r => `
+        <div class="room-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span class="room-id">${r.roomId}</span>
+                <span class="room-state state-${r.state}">${r.state}</span>
+            </div>
+            ${r.map ? `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Map: ${r.map}</div>` : ''}
+            <div style="margin-bottom:10px">${r.players.map(p => `
+                <span class="player-pill">
+                    ${p.name}
+                    ${p.ready ? '✅' : ''}
+                    ${p.eliminated ? '💀' : ''}
+                    ${p.finished ? '🏁' : ''}
+                </span>`).join('')}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn btn-danger btn-sm" onclick="forceEndRoom('${r.roomId}')">🛑 End Room</button>
+                ${r.players.map(p => `<button class="btn btn-warn btn-sm" onclick="kickPlayer('${r.roomId}','${p.name}')">Kick ${p.name}</button>`).join('')}
+            </div>
+        </div>`).join('')}</div>`;
+        }
+
+        // ── Games ─────────────────────────────────────────────────────
+        let gamesPage = 0;
+        let gamesTotal = 0;
+
+        async function loadGames(page) {
+            gamesPage = page;
+            const map = encodeURIComponent(document.getElementById('games-map-filter').value);
+            const status = encodeURIComponent(document.getElementById('games-status-filter').value);
+            try {
+                const data = await api(`/games?page=${page}&limit=15&map=${map}&status=${status}`);
+                gamesTotal = data.total;
+                const MAP_EMO = { frozenfrenzy: '🌨️', lavahell: '🔥', honeycomb: '🍯', neonparadox: '🔮', cryovoid: '❄️' };
+                const STATUS_BADGE = {
+                    completed: '<span class="badge badge-green">✓ Done</span>',
+                    in_progress: '<span class="badge badge-yellow">⏳ Live</span>',
+                    aborted: '<span class="badge badge-red">✗ Aborted</span>',
+                };
+                document.getElementById('games-tbody').innerHTML =
+                    data.games.length === 0
+                        ? '<tr><td colspan="8" style="color:var(--muted)">No games found.</td></tr>'
+                        : data.games.map(g => {
+                            const dur = g.durationMs ? `${Math.round(g.durationMs / 1000)}s` : '—';
+                            const date = new Date(g.startedAt).toLocaleString();
+                            return `<tr>
+                        <td style="font-family:monospace;font-size:0.82rem">${g.roomId}</td>
+                        <td>${MAP_EMO[g.map] || ''} ${g.map}</td>
+                        <td>${STATUS_BADGE[g.status] || g.status}</td>
+                        <td>${g.winnerUsername ? `<span style="color:var(--success)">🏆 ${g.winnerUsername}</span>` : '—'}</td>
+                        <td>${g.players?.length || 0}</td>
+                        <td>${dur}</td>
+                        <td style="color:var(--muted);font-size:0.78rem">${date}</td>
+                        <td><button class="btn btn-danger btn-sm" onclick="deleteGame('${g._id}')">🗑</button></td>
+                    </tr>`;
+                        }).join('');
+
+                // Pagination
+                const totalPages = Math.ceil(data.total / 15);
+                document.getElementById('games-pagination').innerHTML = `
+            <button class="btn btn-ghost btn-sm" onclick="loadGames(${page - 1})" ${page === 0 ? 'disabled' : ''}>← Prev</button>
+            <span>Page ${page + 1} / ${totalPages || 1} (${data.total} games)</span>
+            <button class="btn btn-ghost btn-sm" onclick="loadGames(${page + 1})" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
+        `;
+            } catch (e) { console.error(e); }
+        }
+
+        async function deleteGame(id) {
+            if (!confirm('Delete this game record?')) return;
+            try {
+                await api(`/games/${id}`, 'DELETE');
+                toast('Game record deleted.', 'var(--danger)');
+                loadGames(gamesPage);
+            } catch (e) { toast('Delete failed: ' + e.message, 'var(--danger)'); }
+        }
+
+        // ── Users ─────────────────────────────────────────────────────
+        let usersPage = 0;
+
+        async function loadUsers(page) {
+            usersPage = page;
+            const q = encodeURIComponent(document.getElementById('user-search').value.trim());
+            try {
+                const data = await api(`/users?page=${page}&q=${q}`);
+                document.getElementById('users-tbody').innerHTML =
+                    data.users.length === 0
+                        ? '<tr><td colspan="8" style="color:var(--muted)">No users found.</td></tr>'
+                        : data.users.map(u => `<tr>
+                    <td><strong>${u.username}</strong></td>
+                    <td style="color:var(--muted);font-size:0.82rem">${u.email}</td>
+                    <td style="color:var(--warn)">🏆 ${u.trophies}</td>
+                    <td>${u.wins}</td>
+                    <td>${u.gamesPlayed}</td>
+                    <td>${u.banned
+                                ? '<span class="badge badge-red">🚫 Banned</span>'
+                                : '<span class="badge badge-green">Active</span>'}</td>
+                    <td style="color:var(--muted);font-size:0.78rem">${new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td style="display:flex;gap:5px;flex-wrap:wrap">
+                        ${u.banned
+                                ? `<button class="btn btn-success btn-sm" onclick="banUser('${u._id}',false)">✓ Unban</button>`
+                                : `<button class="btn btn-danger btn-sm" onclick="banUser('${u._id}',true)">🚫 Ban</button>`}
+                        <button class="btn btn-warn btn-sm" onclick="resetStats('${u._id}','${u.username}')">↺ Reset</button>
+                    </td>
+                </tr>`).join('');
+
+                const totalPages = Math.ceil(data.total / 20);
+                document.getElementById('users-pagination').innerHTML = `
+            <button class="btn btn-ghost btn-sm" onclick="loadUsers(${page - 1})" ${page === 0 ? 'disabled' : ''}>← Prev</button>
+            <span>Page ${page + 1} / ${totalPages || 1} (${data.total} users)</span>
+            <button class="btn btn-ghost btn-sm" onclick="loadUsers(${page + 1})" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
+        `;
+            } catch (e) { console.error(e); }
+        }
+
+        async function banUser(userId, banned) {
+            const action = banned ? 'ban' : 'unban';
+            if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+            try {
+                const data = await api(`/users/${userId}/ban`, 'POST', { banned });
+                toast(`${data.user.username} ${banned ? 'banned' : 'unbanned'}.`, banned ? 'var(--danger)' : 'var(--success)');
+                loadUsers(usersPage);
+            } catch (e) { toast('Error: ' + e.message, 'var(--danger)'); }
+        }
+
+        async function resetStats(userId, username) {
+            if (!confirm(`Reset all stats for ${username}? This cannot be undone.`)) return;
+            try {
+                await api(`/users/${userId}/reset-stats`, 'POST');
+                toast(`Stats reset for ${username}.`, 'var(--warn)');
+                loadUsers(usersPage);
+            } catch (e) { toast('Error: ' + e.message, 'var(--danger)'); }
+        }
+
+        // ── Room Actions ──────────────────────────────────────────────
+        async function forceEndRoom(roomId) {
+            if (!confirm(`Force-end room ${roomId}? All players will be returned to lobby.`)) return;
+            try {
+                await api(`/rooms/${roomId}/force-end`, 'POST');
+                toast(`Room ${roomId} ended.`, 'var(--warn)');
+                refreshLive();
+            } catch (e) { toast('Error: ' + e.message, 'var(--danger)'); }
+        }
+
+        async function kickPlayer(roomId, playerName) {
+            if (!confirm(`Kick ${playerName} from room ${roomId}?`)) return;
+            try {
+                const data = await api(`/rooms/${roomId}/kick`, 'POST', { playerName });
+                toast(data.message, data.success ? 'var(--accent)' : 'var(--danger)');
+                setTimeout(refreshLive, 500);
+            } catch (e) { toast('Error: ' + e.message, 'var(--danger)'); }
+        }
+
+        async function forceEndAll() {
+            try {
+                const data = await api('/overview');
+                for (const r of data.liveRooms) {
+                    await api(`/rooms/${r.roomId}/force-end`, 'POST');
+                }
+                toast('All rooms force-ended.', 'var(--warn)');
+                setTimeout(refreshLive, 500);
+            } catch (e) { toast('Error: ' + e.message, 'var(--danger)'); }
+        }
+
+        // ── Broadcast ─────────────────────────────────────────────────
+        async function sendBroadcast() {
+            const msg = document.getElementById('broadcast-msg').value.trim();
+            if (!msg) return;
+            try {
+                await api('/broadcast', 'POST', { msg });
+                toast('Broadcast sent!', 'var(--warn)');
+                document.getElementById('broadcast-msg').value = '';
+            } catch (e) { toast('Error: ' + e.message, 'var(--danger)'); }
+        }
+
+        async function sendBroadcast2() {
+            const msg = document.getElementById('broadcast-msg2').value.trim();
+            if (!msg) return;
+            try {
+                await api('/broadcast', 'POST', { msg });
+                toast('Broadcast sent!', 'var(--warn)');
+                document.getElementById('broadcast-msg2').value = '';
+            } catch (e) { toast('Error: ' + e.message, 'var(--danger)'); }
+        }
+
+        // ── Keyboard shortcut ────────────────────────────────────────
+        document.getElementById('admin-secret-input').addEventListener('keydown', e => {
+            if (e.key === 'Enter') doLogin();
+        });
+
+        // ── Auto-resume session ──────────────────────────────────────
+        const savedToken = sessionStorage.getItem('mr_admin_token');
+        if (savedToken) {
+            token = savedToken;
+            showApp();
+        }
+    </script>
+</body>
+
+</html>

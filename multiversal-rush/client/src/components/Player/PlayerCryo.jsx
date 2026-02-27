@@ -1,0 +1,326 @@
+﻿// ============================================================
+//  components/Player/Player.jsx
+//  Base: Tanaya (Task 1) ÔÇö WASD + jump + gravity + camera follow
+//  Integration: Varun (Task 2) ÔÇö emitMove / emitFell / emitWorldTransition
+// ============================================================
+import React, { useRef, useEffect } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
+import * as THREE from 'three';
+import { aabbCollision } from '../../utils/collision';
+import useStore from '../../store/store';
+
+const MOVE_SPEED = 10;
+const CROUCH_SPEED = 5;
+const JUMP_POWER = 12;
+const GRAVITY = -30;
+const FALL_LIMIT = -15;
+
+// ---- Keyboard hook (Tanaya's ÔÇö no re-renders) ----
+function useKeyboard() {
+    const keyMap = useRef({
+        w: false, a: false, s: false, d: false,
+        arrowup: false, arrowdown: false, arrowleft: false, arrowright: false,
+        ' ': false, shift: false,
+    });
+
+    useEffect(() => {
+        const handler = (e) => {
+            const key = e.key.toLowerCase();
+            if (Object.prototype.hasOwnProperty.call(keyMap.current, key)) {
+                if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+                    e.preventDefault();
+                }
+                keyMap.current[key] = e.type === 'keydown';
+            }
+        };
+        document.addEventListener('keydown', handler, { passive: false });
+        document.addEventListener('keyup', handler);
+        return () => {
+            document.removeEventListener('keydown', handler);
+            document.removeEventListener('keyup', handler);
+        };
+    }, []);
+
+    return keyMap;
+}
+
+/**
+ * Props (provided by World1 / World2 via Game.jsx):
+ *   emitMove({ position, rotation, world }) ÔÇö broadcast position every frame
+ *   emitFell()                              ÔÇö called when player falls off
+ *   emitWorldTransition(newWorld)           ÔÇö called on portal trigger
+ *   world {number}                          ÔÇö current world (1 or 2)
+ *   startPosition {[x,y,z]}                ÔÇö spawn point
+ *   platforms {Array} - [{ pos, size, isSlippery }] for ground collision
+ */
+export default React.forwardRef(function PlayerCryo({
+    emitMove,
+    emitFell,
+    emitWorldTransition,
+    emitAchievement,
+    world = 1,
+    startPosition = [0, 1, 0],
+    platforms = [],
+}, ref) {
+    const speedMultiplier = useRef(1.0);
+    const accumulatedSlideDist = useRef(0); // Track for achievement
+    // ---- Load chosen avatar from Zustand store (same as regular Player) ----
+    const avatarPath = useStore((s) => s.avatar);
+    const { scene } = useGLTF(avatarPath);
+
+    // Optimize model for FPS
+    useEffect(() => {
+        scene.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = false;
+                child.receiveShadow = false;
+            }
+        });
+    }, [scene]);
+    const playerRef = useRef();
+
+    // Sync external ref if provided
+    React.useImperativeHandle(ref, () => ({
+        mesh: playerRef.current,
+        get velocityXZ() { return velocityXZ.current; },
+        get position() { return playerRef.current?.position; },
+        get speedMultiplier() { return speedMultiplier.current; },
+        set speedMultiplier(v) { speedMultiplier.current = v; },
+
+        /**
+         * Apply an external impulse force (e.g. snowball knockback, wind push).
+         * The force is added to the player's velocity and decays naturally.
+         * @param {number} fx - force X component
+         * @param {number} fy - force Y component (positive = up)
+         * @param {number} fz - force Z component
+         */
+        applyForce(fx, fy, fz) {
+            externalForce.current.x += fx;
+            velocityY.current += fy;     // Y is separate (gravity system)
+            externalForce.current.z += fz;
+        },
+    }));
+
+    const keys = useKeyboard();
+    const { camera } = useThree();
+
+    // Physics refs
+    const velocityY = useRef(0);
+    const velocityXZ = useRef(new THREE.Vector3());
+    const isGrounded = useRef(false);
+    const currentOnIce = useRef(false);
+
+    // Reusable vectors — avoid GC pressure during game loop
+    const direction = useRef(new THREE.Vector3());
+    const targetCameraPos = useRef(new THREE.Vector3());
+    const cameraOffset = useRef(new THREE.Vector3(0, 4, 8));
+
+    // External impulse force (applied by snowballs, wind, etc.)
+    // Decays each frame — no cleanup needed
+    const externalForce = useRef(new THREE.Vector3());
+
+    // Multiplayer emit throttle (Varun)
+    const lastEmitRef = useRef(0);
+
+    useFrame((_, delta) => {
+        if (!playerRef.current) return;
+
+        // Reset multiplier every frame ÔÇö external zones MUST set it every frame
+        const currentMultiplier = speedMultiplier.current;
+        speedMultiplier.current = 1.0;
+
+        const pos = playerRef.current.position;
+
+        // ---- 1. Movement & Momentum ----
+        // Apply & decay any external impulse force (knockback, wind, etc.)
+        if (externalForce.current.lengthSq() > 0.001) {
+            velocityXZ.current.add(externalForce.current);
+            externalForce.current.multiplyScalar(0.75); // decay — snappy but brief
+        } else {
+            externalForce.current.set(0, 0, 0); // clamp tiny residuals
+        }
+
+        direction.current.set(0, 0, 0);
+        if (keys.current.w || keys.current.arrowup) direction.current.z -= 1;
+        if (keys.current.s || keys.current.arrowdown) direction.current.z += 1;
+        if (keys.current.a || keys.current.arrowleft) direction.current.x -= 1;
+        if (keys.current.d || keys.current.arrowright) direction.current.x += 1;
+        if (direction.current.lengthSq() > 0) direction.current.normalize();
+
+        const isCrouching = keys.current.shift;
+        const baseSpeed = isCrouching ? CROUCH_SPEED : MOVE_SPEED;
+        const speed = baseSpeed * currentMultiplier;
+
+        // Apply slippery physics
+        const damping = currentOnIce.current ? 0.98 : 0.85; // Less damping on ice = slippery
+        const accel = currentOnIce.current ? 5.0 : 15.0; // Slower acceleration on ice
+
+        // Lerp horizontal velocity
+        const targetVelX = direction.current.x * speed;
+        const targetVelZ = direction.current.z * speed;
+        velocityXZ.current.x = THREE.MathUtils.lerp(velocityXZ.current.x, targetVelX, accel * delta);
+        velocityXZ.current.z = THREE.MathUtils.lerp(velocityXZ.current.z, targetVelZ, accel * delta);
+
+        // Damping when no keys pressed
+        if (direction.current.lengthSq() === 0) {
+            velocityXZ.current.multiplyScalar(damping);
+        }
+
+        pos.x += velocityXZ.current.x * delta;
+        pos.z += velocityXZ.current.z * delta;
+
+        // ---- Track Slide Distance Achievement ----
+        if (isGrounded.current && currentOnIce.current) {
+            const distMoved = Math.sqrt(
+                (velocityXZ.current.x * delta) ** 2 +
+                (velocityXZ.current.z * delta) ** 2
+            );
+            accumulatedSlideDist.current += distMoved;
+
+            // Emit to server every 10 meters to avoid over-flooding
+            if (accumulatedSlideDist.current >= 10) {
+                emitAchievement?.('slideDistance', Math.floor(accumulatedSlideDist.current));
+                accumulatedSlideDist.current = 0;
+            }
+        }
+
+        // ---- 2. Crouch Scale & Rotation ----
+        const targetScaleY = isCrouching ? 0.5 : 1.0;
+        // Base scale for the model is 1.2
+        const targetScale = isCrouching ? 0.6 : 1.2;
+        playerRef.current.scale.y = THREE.MathUtils.lerp(playerRef.current.scale.y, targetScale, 10 * delta);
+
+        // Character Rotation: Face the direction of velocity
+        let currentFacingAngle = playerRef.current.rotation.y; // Default to current rotation
+        if (velocityXZ.current.lengthSq() > 0.1) {
+            const targetAngle = Math.atan2(velocityXZ.current.x, velocityXZ.current.z);
+            const targetRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
+            playerRef.current.quaternion.slerp(targetRotation, 10 * delta);
+            currentFacingAngle = targetAngle; // Store the actual facing direction
+        }
+
+        // ---- 3. Gravity & Jumping ----
+        if (keys.current[' '] && isGrounded.current && !isCrouching) {
+            velocityY.current = JUMP_POWER;
+            isGrounded.current = false;
+            emitAchievement?.('jump');
+        }
+        velocityY.current += GRAVITY * delta;
+        pos.y += velocityY.current * delta;
+
+        // ---- 4. Collision Detection (AABB) ----
+        let groundedThisFrame = false;
+        let onIceThisFrame = false;
+
+        // Player AABB (0.5 half-extents for size 1)
+        const pSize = { w: 0.5, h: 0.5, d: 0.5 };
+
+        // Combine static platforms from props with dynamic ones from the Zustand store
+        const allPlatforms = [...platforms];
+        Object.values(useStore.getState().platforms).forEach((plat) => {
+            allPlatforms.push({
+                size: plat.size,
+                pos: [plat.position.x, plat.position.y, plat.position.z],
+                isSlippery: plat.isSlippery,
+            });
+        });
+
+        allPlatforms.forEach((plat) => {
+            const platSize = { w: plat.size[0] / 2, h: plat.size[1] / 2, d: plat.size[2] / 2 };
+            const platPos = { x: plat.pos[0], y: plat.pos[1], z: plat.pos[2] };
+
+            // For tilted slides, we use a simplified height calculation
+            if (plat.isSlide && plat.rot) {
+                const zDist = Math.abs(pos.z - platPos.z);
+                const xDist = Math.abs(pos.x - platPos.x);
+
+                if (zDist < platSize.d && xDist < platSize.w) {
+                    // Calculate Y based on Z position and rotation (assuming X-axis rotation)
+                    // y = y_center + (z - z_center) * tan(angle)
+                    // Note: -Math.sin for downward tilt toward -Z
+                    const angle = plat.rot[0];
+                    const localZ = pos.z - platPos.z;
+                    const targetY = platPos.y - Math.tan(angle) * localZ + platSize.h;
+
+                    if (velocityY.current <= 0 && pos.y >= targetY - 0.5) {
+                        pos.y = targetY + pSize.h;
+                        velocityY.current = 0;
+                        groundedThisFrame = true;
+                        onIceThisFrame = true;
+
+                        // "No artificial speed boost" ÔÇö just gravity + momentum
+                        // But we help physics by adding a small "pull" to simulate gravity on a slope
+                        velocityXZ.current.z -= Math.sin(angle) * 15 * delta;
+                    }
+                }
+            } else {
+                // Regular Platform check (using stable logic from Player.jsx)
+                const minX = plat.pos[0] - plat.size[0] / 2;
+                const maxX = plat.pos[0] + plat.size[0] / 2;
+                const minZ = plat.pos[2] - plat.size[2] / 2;
+                const maxZ = plat.pos[2] + plat.size[2] / 2;
+                const surfaceY = plat.pos[1] + plat.size[1] / 2; // top of platform
+
+                // Check horizontal bounds
+                if (pos.x >= minX && pos.x <= maxX && pos.z >= minZ && pos.z <= maxZ) {
+                    // Check vertical snap bounds
+                    if (velocityY.current <= 0 && pos.y >= surfaceY - 0.5 && pos.y <= surfaceY + 1.0) {
+                        pos.y = surfaceY; // snapped directly to top
+                        velocityY.current = 0;
+                        groundedThisFrame = true;
+                        if (plat.isSlippery) onIceThisFrame = true;
+                    }
+                }
+            }
+        });
+
+        isGrounded.current = groundedThisFrame;
+        currentOnIce.current = onIceThisFrame;
+
+        // Fall limit
+        if (pos.y < FALL_LIMIT) {
+            pos.set(...startPosition);
+            velocityY.current = 0;
+            velocityXZ.current.set(0, 0, 0);
+            isGrounded.current = false;
+            emitFell?.();
+        }
+
+        // ---- 5. Camera & Emit ----
+        targetCameraPos.current.copy(pos).add(cameraOffset.current);
+        camera.position.lerp(targetCameraPos.current, 5.0 * delta);
+        camera.lookAt(pos);
+
+        const now = Date.now();
+        if (now - lastEmitRef.current > 50) {
+            lastEmitRef.current = now;
+
+            const position = { x: pos.x, y: pos.y, z: pos.z };
+            const rotation = { y: currentFacingAngle };
+
+            // Update local store so obstacles can see us
+            useStore.getState().setMyPosition(position);
+            useStore.getState().setMyRotation(rotation);
+
+            emitMove?.({
+                position,
+                rotation,
+                world,
+            });
+        }
+    });
+
+    return (
+        <group ref={playerRef} position={startPosition} scale={[1.2, 1.2, 1.2]}>
+            {/* Red Panda Model */}
+            <primitive object={scene} />
+
+            {/* Invisible Collider for AABB computations */}
+            <mesh visible={false}>
+                <boxGeometry args={[1, 1, 1]} />
+                <meshBasicMaterial />
+            </mesh>
+        </group>
+    );
+});

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Zoro Stumble Guys
+* source:	https://sketchfab.com/3d-models/zoro-stumble-guys-0ed1aecc98464c5799a13e6cd227e7fc
+* author:	maurotanaka (https://sketchfab.com/maurotanaka)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Zoro Stumble Guys" (https://sketchfab.com/3d-models/zoro-stumble-guys-0ed1aecc98464c5799a13e6cd227e7fc) by maurotanaka (https://sketchfab.com/maurotanaka) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -1,0 +1,310 @@
+@import url("https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800;900&family=Orbitron:wght@400;700;900&display=swap");
+
+/* ============================================================
+   TeamRoomJoin.css — Multiversal Relay Join / Create Room
+   ============================================================ */
+
+.team-join-page {
+    width: 100vw;
+    height: 100vh;
+    background: #070b1a;
+    color: #fff;
+    font-family: 'Exo 2', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.team-join-bg {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 30% 20%, rgba(255, 60, 60, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(60, 120, 255, 0.12) 0%, transparent 50%);
+    z-index: 0;
+}
+
+.team-join-particles {
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(2px 2px at 20% 30%, rgba(255, 100, 100, 0.5), transparent),
+        radial-gradient(2px 2px at 80% 70%, rgba(100, 150, 255, 0.5), transparent),
+        radial-gradient(1px 1px at 50% 50%, rgba(255, 255, 255, 0.3), transparent),
+        radial-gradient(1px 1px at 40% 60%, rgba(255, 200, 100, 0.3), transparent);
+    background-size: 300px 300px, 250px 250px, 200px 200px, 150px 150px;
+    animation: particleDrift 20s linear infinite;
+    z-index: 0;
+}
+
+@keyframes particleDrift {
+    from {
+        background-position: 0 0, 100px 50px, 50px 100px, 200px 0;
+    }
+
+    to {
+        background-position: 300px 300px, 400px 350px, 350px 400px, 500px 300px;
+    }
+}
+
+.team-join-container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    max-width: 520px;
+    width: 90%;
+}
+
+.team-join-back {
+    position: absolute;
+    top: -60px;
+    left: 0;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #aaa;
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 10px 22px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    letter-spacing: 1px;
+}
+
+.team-join-back:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    transform: translateX(-4px);
+}
+
+.team-join-hero {
+    text-align: center;
+}
+
+.team-join-icon {
+    font-size: 4rem;
+    filter: drop-shadow(0 0 30px rgba(255, 180, 60, 0.5));
+    animation: iconBounce 2s ease-in-out infinite;
+}
+
+@keyframes iconBounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.team-join-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    background: linear-gradient(135deg, #ff4444, #ff8844, #ffbb44, #44aaff, #4466ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-size: 300% 100%;
+    animation: gradientShift 5s ease-in-out infinite;
+    margin: 8px 0 4px;
+}
+
+@keyframes gradientShift {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+.team-join-subtitle {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 1rem;
+    letter-spacing: 1px;
+}
+
+.team-join-card {
+    background: rgba(15, 20, 40, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    backdrop-filter: blur(16px);
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.team-join-section h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+}
+
+.team-join-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+.team-join-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 3px;
+    outline: none;
+    transition: all 0.3s;
+}
+
+.team-join-input:focus {
+    border-color: #44aaff;
+    box-shadow: 0 0 20px rgba(68, 170, 255, 0.2);
+}
+
+.team-join-input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
+    letter-spacing: 1px;
+    font-size: 0.8rem;
+}
+
+.team-join-btn {
+    background: linear-gradient(135deg, #44aaff, #3366ff);
+    border: none;
+    border-radius: 10px;
+    padding: 14px 28px;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: all 0.3s;
+    box-shadow: 0 6px 24px rgba(68, 170, 255, 0.3);
+}
+
+.team-join-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(68, 170, 255, 0.5);
+}
+
+.team-join-divider {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 24px 0;
+}
+
+.team-join-divider::before,
+.team-join-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.15), transparent);
+}
+
+.team-join-divider span {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 3px;
+}
+
+.team-join-create-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #ff4444, #ff6644);
+    border: none;
+    border-radius: 12px;
+    padding: 16px 24px;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #fff;
+    cursor: pointer;
+    letter-spacing: 3px;
+    transition: all 0.3s;
+    box-shadow: 0 8px 30px rgba(255, 68, 68, 0.3);
+    text-transform: uppercase;
+}
+
+.team-join-create-btn:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 12px 40px rgba(255, 68, 68, 0.5);
+}
+
+.team-join-error {
+    color: #ff5555;
+    background: rgba(255, 0, 0, 0.08);
+    border: 1px solid rgba(255, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-top: 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.team-join-rules {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+}
+
+.rule-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.65);
+    transition: all 0.3s;
+}
+
+.rule-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.rule-icon {
+    font-size: 1.3rem;
+}
+
+@media (max-width: 600px) {
+    .team-join-title {
+        font-size: 1.8rem;
+    }
+
+    .team-join-card {
+        padding: 24px 20px;
+    }
+
+    .team-join-rules {
+        grid-template-columns: 1fr;
+    }
+}

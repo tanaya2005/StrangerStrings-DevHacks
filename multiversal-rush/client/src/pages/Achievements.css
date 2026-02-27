@@ -1,0 +1,269 @@
+/* ============================================================
+   pages/Achievements.css — Achievement page styling
+   Dark cyberpunk theme matching the game aesthetic.
+   ============================================================ */
+
+.ach-page {
+    min-height: 100vh;
+    background: #0a0a12;
+    color: #fff;
+    font-family: 'Exo 2', 'Segoe UI', sans-serif;
+    position: relative;
+    overflow-x: hidden;
+}
+
+.ach-bg-anim {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(0, 255, 200, 0.04) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 30%, rgba(100, 100, 255, 0.04) 0%, transparent 60%);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.ach-container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px 60px;
+}
+
+.ach-header {
+    text-align: center;
+    margin-bottom: 36px;
+}
+
+.ach-back-btn {
+    position: absolute;
+    left: 20px;
+    top: 40px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ccc;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.ach-back-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.ach-title {
+    font-size: 2.2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #ffd700, #ffaa00, #ff6600);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0;
+}
+
+.ach-subtitle {
+    color: #888;
+    font-size: 0.95rem;
+    margin-top: 6px;
+}
+
+.ach-loading,
+.ach-error {
+    text-align: center;
+    padding: 60px 20px;
+    font-size: 1.1rem;
+    color: #888;
+}
+
+.ach-error {
+    color: #ff4d6d;
+}
+
+/* ---- Grid ---- */
+.ach-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+}
+
+@media (min-width: 600px) {
+    .ach-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* ---- Card ---- */
+.ach-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.25s;
+}
+
+.ach-card:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: var(--tier-color, rgba(255, 255, 255, 0.12));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.ach-card.locked {
+    opacity: 0.55;
+}
+
+.ach-card.unlocked {
+    border-color: var(--tier-color, #555);
+    opacity: 1;
+}
+
+.ach-card.maxed {
+    border-color: #ffd700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
+}
+
+.ach-card-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+}
+
+.ach-card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ach-card-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 2px;
+}
+
+.ach-card-desc {
+    font-size: 0.78rem;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+/* ---- Progress Bar ---- */
+.ach-progress-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.ach-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
+.ach-progress-label {
+    font-size: 0.72rem;
+    color: #666;
+    text-align: right;
+}
+
+/* ---- Tier Badges ---- */
+.ach-tiers {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.ach-tier-badge {
+    font-size: 1.1rem;
+    opacity: 0.25;
+    transition: opacity 0.3s;
+    cursor: default;
+}
+
+.ach-tier-badge.earned {
+    opacity: 1;
+}
+
+/* ---- Medal overlay ---- */
+.ach-medal {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    font-size: 1.5rem;
+}
+
+/* ---- Filter Tabs ---- */
+.ach-filter-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+
+.ach-filter-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: #888;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.ach-filter-tab:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ccc;
+}
+
+.ach-filter-tab.active {
+    background: rgba(255, 215, 0, 0.12);
+    border-color: rgba(255, 215, 0, 0.3);
+    color: #ffd700;
+}
+
+.ach-filter-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: inherit;
+    padding: 0 6px;
+}
+
+.ach-filter-tab.active .ach-filter-count {
+    background: rgba(255, 215, 0, 0.2);
+}
+
+/* ---- Empty State ---- */
+.ach-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+    font-size: 0.95rem;
+}
